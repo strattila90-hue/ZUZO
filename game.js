@@ -3,35 +3,7 @@
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-// ---------- TÁRGYKATALÓGUS (méretek 800 px széles referencia-képernyőre) ----------
-// shape 'c' = kör (r), egyébként téglalap (w,h); d = sűrűség; hp = erősség; v = érték (Ft)
-const CATS = {
-  'Pénzérmék': [
-    { n: '1 Ft', e: '🪙', shape: 'c', r: 7, d: .008, hp: 15, v: 1, c: '#b8b8b8' },
-    { n: '100 Ft', e: '🪙', shape: 'c', r: 10, d: .008, hp: 25, v: 100, c: '#c9a227' },
-    { n: 'Aranyérme', e: '🏅', shape: 'c', r: 13, d: .02, hp: 90, v: 5000, c: '#ffd700' }],
-  'Elektronika': [
-    { n: 'Telefon', e: '📱', w: 18, h: 34, d: .003, hp: 60, v: 600, c: '#4a5568' },
-    { n: 'Laptop', e: '💻', w: 52, h: 32, d: .003, hp: 140, v: 1500, c: '#718096' },
-    { n: 'TV', e: '📺', w: 90, h: 58, d: .002, hp: 200, v: 3000, c: '#2d3748' }],
-  'Élelmiszer': [
-    { n: 'Alma', e: '🍎', shape: 'c', r: 12, d: .001, hp: 20, v: 10, c: '#c53030' },
-    { n: 'Dinnye', e: '🍉', shape: 'c', r: 26, d: .001, hp: 60, v: 40, c: '#2f855a' },
-    { n: 'Kenyér', e: '🍞', w: 46, h: 22, d: .001, hp: 15, v: 25, c: '#b7791f' }],
-  'Bútorok': [
-    { n: 'Szék', e: '🪑', w: 34, h: 50, d: .0015, hp: 100, v: 300, c: '#8b5a2b' },
-    { n: 'Asztal', e: '🪵', w: 100, h: 50, d: .0015, hp: 220, v: 600, c: '#a0713a' },
-    { n: 'Kanapé', e: '🛋️', w: 120, h: 50, d: .002, hp: 300, v: 1500, c: '#6b46c1' }],
-  'Járművek': [
-    { n: 'Bicikli', e: '🚲', w: 80, h: 44, d: .0008, hp: 250, v: 800, c: '#2b6cb0' },
-    { n: 'Autó', e: '🚗', w: 150, h: 50, d: .006, hp: 2500, v: 20000, c: '#e53e3e' },
-    { n: 'Teherautó', e: '🚚', w: 210, h: 72, d: .006, hp: 6000, v: 60000, c: '#dd6b20' }],
-  'Egyéb': [
-    { n: 'Tégla', e: '🧱', w: 40, h: 20, d: .004, hp: 150, v: 15, c: '#c05621' },
-    { n: 'Üveg', e: '🍾', w: 14, h: 40, d: .002, hp: 10, v: 8, c: '#38a169' },
-    { n: 'Szikla', e: '🪨', shape: 'c', r: 30, d: .004, hp: 800, v: 50, c: '#718096' },
-    { n: 'Repülőgép', e: '✈️', w: 280, h: 60, d: .003, hp: 15000, v: 500000, c: '#a0aec0' }]
-};
+// ---------- TÁRGYKATALÓGUS: lásd items.js (CATS) ----------
 // Zóna szorzók a kifizetéshez
 const MULT = { press: 1, grind: 1, melt: 2.5, impact: 0.5 };
 

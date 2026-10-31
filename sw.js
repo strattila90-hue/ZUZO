@@ -1,6 +1,6 @@
 // Zúzó service worker: offline-first + háttérfrissítés (stale-while-revalidate)
-const CACHE = 'zuzo-v2';
-const FILES = ['./', 'index.html', 'style.css', 'game.js', 'matter.min.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'zuzo-v3';
+const FILES = ['./', 'index.html', 'style.css', 'game.js', 'items.js', 'matter.min.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE)
     .then(c => Promise.all(FILES.map(f => c.add(f).catch(() => {}))))
