@@ -17,9 +17,10 @@ function start() {
 
   // ---------- MENTÉS ----------
   const SAVE = 'zuzo_save_v1';
-  let st = { money: 0, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press' };
+  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null };
   try { Object.assign(st, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
   if (!KINDS.includes(st.card)) st.card = 'press';
+  if (!st.stats) st.stats = { kills: 0, earned: 0 };
   let saveT = 0;
   const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(SAVE, JSON.stringify(st)); } catch (e) {} }, 400); };
 
@@ -40,25 +41,184 @@ function start() {
   // ---------- NÉZET ÉS KÁRTYÁK ----------
   let W = 0, H = 0, S = 1, U = 2, lw = 0, lh = 0, cc = ctx, paused = true;
   const scenes = {};
-  let cur = st.card;
+  let cur = st.card, view = cur;   // cur = utoljára használt gép-kártya, view = ami látszik (gép vagy 'orders')
+  const TABS = ['press', 'grind', 'melt', 'orders'];
+
+  // =====================================================================================
+  //  JÁTÉKMENET – „Zúzó Kft.”: megbízások → XP/szint → új tárgyak + fejlesztési plafon → adósság törlesztése
+  //  Beszerzés (35%-os áron) → gép feldolgozza (prés ×1, daráló ×1, olvasztó ×2,5+) → haszon → fejlesztés / törlesztés
+  // =====================================================================================
+  const LOC = { press: 'a présben', grind: 'a darálóban', melt: 'az olvasztóban' }, VERB = { press: 'Zúzz be', grind: 'Daráld le', melt: 'Olvassz meg' };
+  const need = l => Math.round(50 * Math.pow(l, 1.55));
+  function lvlInfo() { let l = 1, rem = st.xp; while (rem >= need(l)) { rem -= need(l); l++; } return { l, rem, need: need(l) }; }
+  const level = () => lvlInfo().l;
+  const capOf = () => 3 + 2 * level();                      // a gépek legmagasabb szintje a cég szintjétől függ
+  const UNL = [[100, 1], [800, 2], [2000, 3], [6000, 4], [25000, 5], [80000, 7], [300000, 9], [1e6, 12], [5e6, 15], [3e7, 18]];
+  function unlockLvl(d) { for (const [v, l] of UNL) if (d.v <= v) return l; return 22; }
+  const buyCost = d => d.v < 10 ? 0 : Math.round(d.v * .35);
+  const CHAPTERS = [
+    { name: 'Az örökség', debt: 8000, story: 'Nagybátyád ócskatelepét örökölted – és a hitelező bank 8 000 Ft-ot követel. Vállalj megbízásokat, zúzd a hulladékot!' },
+    { name: 'Üzemi gépek', debt: 150000, story: 'A prés rozsdás, a daráló nyikorog. Fejleszd a gépeket, hogy nagyobb megrendelőket szolgálhass ki.' },
+    { name: 'Elektronikai boom', debt: 2000000, story: 'Tele a város régi telefonokkal és tévékkel. Daráld le, olvaszd be – a nemesfém a nyereség!' },
+    { name: 'Filmstúdió-megrendelések', debt: 30000000, story: 'A stúdiók selejtezik a kellékeiket: kiborgokat, szuperhős-figurákat, filmszörnyeket. Ez már nagy üzlet!' },
+    { name: 'Nagyüzem', debt: 400000000, story: 'Járművek, hajók, épületek. A bank már tiszteli a nevedet – még egy nagy lépés hátra van.' },
+    { name: 'A zúzó-király', debt: 5000000000, story: 'Az utolsó részlet: kifizeted a bankot, és az egész üzem a tiéd. Zúzz, ahogy még senki!' }
+  ];
+  const chapterDef = i => CHAPTERS[i] || { name: `Zúzó-birodalom ${i - CHAPTERS.length + 1}.`, debt: 5e9 * Math.pow(10, i - CHAPTERS.length + 1), story: 'A birodalom egyre nő – a bank egy újabb, nagyobb hitelt kínál. Végtelen játék!' };
+  let bannerT; function banner(html, ms) { const b = $('banner'); b.innerHTML = html; b.classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => b.classList.remove('show'), ms || 3200); }
+  function addXp(n) {
+    if (n <= 0) return;
+    const before = level(); st.xp += n; const after = level(); save();
+    if (after > before) {
+      const fresh = []; for (const cat in CATS) for (const d of CATS[cat]) { const u = unlockLvl(d); if (u > before && u <= after) fresh.push(d); }
+      banner(`⭐ SZINT ${after}!<br><small>Gép-plafon: Sz.${capOf()}${fresh.length ? ' · Új tárgyak: ' + fresh.slice(0, 8).map(d => d.e).join(' ') + (fresh.length > 8 ? ' +' + (fresh.length - 8) : '') : ''}</small>`, 4200);
+      beep(660, .12, 'triangle'); setTimeout(() => beep(880, .12, 'triangle'), 110); setTimeout(() => beep(1100, .22, 'triangle'), 220);
+    }
+  }
+  let oid = 1;
+  function genOrder() {
+    const lv = level(), k = KINDS[(Math.random() * 3) | 0], r = Math.random(), id = Date.now() + oid++;
+    const pool = Object.keys(CATS).map(cat => ({ cat, items: CATS[cat].filter(d => unlockLvl(d) <= lv) })).filter(x => x.items.length >= 2);
+    if (r < .5 || lv < 2) { // darabszám egy kategóriából
+      const g = pool[(Math.random() * pool.length) | 0], n = 3 + ((Math.random() * 3) | 0) + ((lv / 5) | 0), avg = g.items.reduce((s, d) => s + d.v, 0) / g.items.length;
+      return { id, type: 'count', k, cat: g.cat, need: n, have: 0, money: Math.max(30, Math.round(n * avg * (k === 'melt' ? .9 : .6) / 10) * 10), xp: 8 + n * 3 + lv * 2, text: `${VERB[k]} ${n} db tárgyat a „${g.cat}” kategóriából (${LOC[k]})` };
+    }
+    if (r < .8) { // bevételi cél
+      const amt = Math.round(300 * Math.pow(1.55, lv - 1) * (k === 'melt' ? 1.5 : 1) / 10) * 10;
+      return { id, type: 'earn', k, need: amt, have: 0, money: Math.round(amt * .4 / 10) * 10, xp: 12 + lv * 3, text: `Keress ${fmt(amt)}-ot ${LOC[k]}` };
+    }
+    const all = []; pool.forEach(x => x.items.forEach(d => all.push(d))); all.sort((a, b) => b.v - a.v);
+    const d = all[(Math.random() * Math.min(6, all.length)) | 0]; // a legértékesebb kinyitott tárgyak egyike
+    return { id, type: 'item', k, name: d.n, need: 1, have: 0, money: Math.round(d.v * .8 / 10) * 10, xp: 20 + lv * 3, text: `${VERB[k]} egy „${d.n}” ${d.e} tárgyat (${LOC[k]})` };
+  }
+  function ensureOrders() { if (!Array.isArray(st.orders)) st.orders = []; while (st.orders.length < 3) st.orders.push(genOrder()); }
+  function track(k, it, pay) { // minden zúzás: statisztika + XP + megbízás-haladás
+    st.stats.earned += pay;
+    if (it.gen === 0) { st.stats.kills++; addXp(Math.round(Math.log10(it.value + 1) * 1.2)); }
+    st.orders.forEach(o => {
+      if (o.k !== k) return;
+      if (o.type === 'count' && it.gen === 0 && it.cat === o.cat) o.have++;
+      else if (o.type === 'item' && it.gen === 0 && it.name === o.name) o.have++;
+      else if (o.type === 'earn') o.have += pay;
+    });
+    st.orders.filter(o => o.have >= o.need).forEach(completeOrder);
+  }
+  function completeOrder(o) {
+    const i = st.orders.indexOf(o); if (i < 0) return;
+    st.money += o.money; st.orders[i] = genOrder(); save();
+    banner(`✅ Megbízás teljesítve!<br><small>+${fmt(o.money)} · +${o.xp} XP</small>`);
+    beep(740, .1, 'triangle'); setTimeout(() => beep(990, .16, 'triangle'), 100);
+    addXp(o.xp); ui();
+  }
+  function rerollOrder(i) {
+    const o = st.orders[i]; if (!o) return; const cost = Math.round(o.money * .1 / 10) * 10;
+    if (st.money < cost) return toast('Nincs elég pénz a cseréhez');
+    st.money -= cost; st.orders[i] = genOrder(); save(); ui();
+  }
+  function payDebt(frac) {
+    const ch = chapterDef(st.chapter), rem = Math.max(0, ch.debt - st.paid), amt = Math.min(rem, frac >= 1 ? Math.floor(st.money) : Math.floor(st.money * frac));
+    if (amt < 1) return toast(st.money < 1 ? 'Nincs mit befizetni' : 'Ez túl kevés a befizetéshez');
+    st.money -= amt; st.paid += amt; save();
+    if (st.paid >= ch.debt - .5) {
+      const xp = 80 * Math.pow(st.chapter + 1, 2), won = st.chapter === CHAPTERS.length - 1 && !st.won;
+      st.chapter++; st.paid = 0; if (won) st.won = true;
+      banner(won ? `🏆 GRATULÁLOK! Kifizetted a tartozást – az üzem a tiéd!<br><small>A játék folytatódik: újabb fejezetek, nagyobb adósság, nagyobb zúzás!</small>`
+        : `📖 Fejezet kész: ${ch.name}!<br><small>+${xp} XP · következő: ${chapterDef(st.chapter).name}</small>`, won ? 7000 : 4200);
+      beep(523, .12, 'triangle'); setTimeout(() => beep(659, .12, 'triangle'), 120); setTimeout(() => beep(784, .12, 'triangle'), 240); setTimeout(() => beep(1047, .3, 'triangle'), 360);
+      addXp(xp);
+    } else toast(`Befizetve: ${fmt(amt)}`);
+    ui();
+  }
+  function renderOrders() {
+    const li = lvlInfo(), ch = chapterDef(st.chapter), lv = li.l, nxt = [];
+    for (const cat in CATS) for (const d of CATS[cat]) if (unlockLvl(d) === lv + 1) nxt.push(d);
+    const cards = st.orders.map((o, i) => {
+      const p = Math.min(100, o.have / o.need * 100), prog = o.type === 'earn' ? `${fmt(o.have)} / ${fmt(o.need)}` : `${o.have} / ${o.need}`, cost = Math.round(o.money * .1 / 10) * 10;
+      return `<div class="oc"><div class="ot"><span class="oi">${LV[o.k].icon}</span><span>${o.text}</span></div><div class="bar"><i style="width:${p}%"></i></div>` +
+        `<div class="of"><span>${prog}</span><b>+${fmt(o.money)} · +${o.xp} XP</b><button class="mini" data-r="${i}">Csere${cost ? ' −' + fmt(cost) : ''}</button></div></div>`;
+    }).join('');
+    $('orders').innerHTML =
+      (st.stats.kills < 12 ? `<div class="card2 tip"><b>💡 Hogyan működik?</b><br>1) Lent válassz tárgyat és nyomd meg a <b>Létrehoz</b> gombot (a tárgy beszerzési ára az érték ~35%-a).<br>2) A gép feldolgozza: a <b>prés</b> és a <b>daráló</b> ×1, az <b>olvasztó</b> lassabb, de ×2,5 pénzt ad.<br>3) A haszonból <b>fejleszd a gépet</b>, a megbízások XP-t adnak: új szint = új tárgyak és magasabb gép-plafon.<br>4) Végső cél: <b>fizesd ki a bank tartozását</b>!</div>` : '') +
+      `<div class="card2"><div class="h">🏭 Zúzó Kft. · Szint ${lv}</div><div class="bar big"><i style="width:${li.rem / li.need * 100}%"></i></div>` +
+      `<div class="sm">${li.rem} / ${li.need} XP · gépek max. szintje: ${capOf()}<br>Következő szint: ${nxt.length ? '🔓 ' + nxt.slice(0, 6).map(d => d.e).join(' ') + (nxt.length > 6 ? ' +' + (nxt.length - 6) : '') + ' új tárgy' : 'magasabb gép-plafon'}</div></div>` +
+      `<div class="card2"><div class="h">📖 ${st.chapter + 1}. fejezet: ${ch.name}</div><div class="sm">${ch.story}</div><div class="bar big debt"><i style="width:${Math.min(100, st.paid / ch.debt * 100)}%"></i></div>` +
+      `<div class="sm">Törlesztve: ${fmt(st.paid)} / ${fmt(ch.debt)} (alul fizethetsz be)</div></div>` +
+      `<div class="h2">📋 Aktív megbízások</div>${cards}` +
+      `<div class="card2 sm">Összes zúzott tárgy: <b>${st.stats.kills}</b> · Összes bevétel: <b>${fmt(st.stats.earned)}</b></div>`;
+  }
+  function updateGoal() { // a legfontosabb cél mindig látszik a képernyő tetején
+    const g = $('goal'), o = st.orders.find(x => x.k === cur) || st.orders[0];
+    if (!o) { g.textContent = ''; return; }
+    const prog = o.type === 'earn' ? `${fmt(o.have)}/${fmt(o.need)}` : `${o.have}/${o.need}`;
+    g.textContent = `🎯 ${prog} · ${o.text}`; g.style.setProperty('--p', Math.min(100, o.have / o.need * 100) + '%');
+  }
   function ui() {
     $('money').textContent = fmt(st.money);
-    KINDS.forEach(k => { const t = $('tab_' + k); t.innerHTML = `${LV[k].icon} ${LV[k].name}<small>Sz.${st[k]}</small>`; t.classList.toggle('on', k === cur); });
-    const c = costOf(cur), b = $('btnUp');
-    b.innerHTML = `<b>⬆ ${LV[cur].name} fejlesztése</b> · Sz.${st[cur]} → ${st[cur] + 1} · ${fmt(c)}<br><small>${effText(cur)}</small>`;
-    b.classList.toggle('off', st.money < c);
+    const li = lvlInfo(); $('lvlTxt').textContent = 'SZ.' + li.l; $('xpBar').style.width = (li.rem / li.need * 100) + '%';
+    KINDS.forEach(k => { const t = $('tab_' + k); t.innerHTML = `${LV[k].icon} ${LV[k].name}<small>Sz.${st[k]}</small>`; t.classList.toggle('on', view === k); });
+    $('tab_orders').innerHTML = `📋 MEGBÍZÁS<small>${st.orders.length} aktív</small>`; $('tab_orders').classList.toggle('on', view === 'orders');
+    const om = view === 'orders'; $('orders').hidden = !om; $('ctlMachine').hidden = om; $('ctlOrders').hidden = !om;
+    if (om) renderOrders();
+    else {
+      const c = costOf(cur), cap = capOf(), b = $('btnUp'), capped = st[cur] >= cap;
+      b.innerHTML = capped ? `<b>🔒 ${LV[cur].name} Sz.${st[cur]}</b> · plafon!<br><small>Lépj szintet a megbízásokkal (új plafon: +2)</small>`
+        : `<b>⬆ ${LV[cur].name} Sz.${st[cur]} → ${st[cur] + 1}</b> · ${fmt(c)}<br><small>${effText(cur)}</small>`;
+      b.classList.toggle('off', capped || st.money < c);
+      refreshPick();
+    }
+    updateGoal();
     KINDS.forEach(k => { const sc = scenes[k]; if (sc && lw && sc.lv !== st[k] && sc.L.ft) { sc.lv = st[k]; paintBg(sc); } }); // a tábla szintje újrarajzolódik
   }
-  function setCard(k) {
-    if (k === cur) return;
-    scenes[cur].endDrag(); cur = k; st.card = k; save(); ui(); audioInit();
+  function setView(v) {
+    if (v === view) return;
+    if (view !== 'orders') scenes[cur].endDrag();
+    view = v; if (v !== 'orders') { cur = v; st.card = v; } save(); ui(); audioInit();
   }
-  KINDS.forEach(k => { $('tab_' + k).onclick = () => setCard(k); });
+  TABS.forEach(k => { $('tab_' + k).onclick = () => setView(k); });
+  $('goal').onclick = () => setView('orders');
+  $('orders').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-r]'); if (b) rerollOrder(+b.dataset.r); });
   $('btnUp').onclick = () => {
     const c = costOf(cur);
+    if (st[cur] >= capOf()) return toast(`Plafon: Sz.${capOf()} – szintet kell lépned (megbízások)!`);
     if (st.money < c) return toast('Nincs elég pénz');
     st.money -= c; st[cur]++; save(); ui(); audioInit();
     beep(520, .1, 'triangle'); setTimeout(() => beep(780, .14, 'triangle'), 90); noiseBurst(3200, .25, .05, 'highpass');
+  };
+  $('pay25').onclick = () => payDebt(.25); $('pay50').onclick = () => payDebt(.5); $('payMax').onclick = () => payDebt(1);
+
+  // ---------- TÁRGYVÁLASZTÓ („beszerzés”) ----------
+  const sel = { cat: Object.keys(CATS)[0], idx: 0 };
+  let pickCat = sel.cat;
+  try { if (st.sel && CATS[st.sel.cat] && CATS[st.sel.cat][st.sel.idx]) Object.assign(sel, st.sel), pickCat = sel.cat; } catch (e) {}
+  const selDef = () => CATS[sel.cat][sel.idx];
+  function refreshPick() {
+    const d = selDef(), cost = buyCost(d), lock = unlockLvl(d) > level();
+    $('btnPick').innerHTML = `${d.e} <b>${d.n}</b> <small>${lock ? '🔒 Sz.' + unlockLvl(d) : cost ? fmt(cost) : 'ingyen'}</small> ▾`;
+    $('btnMake').classList.toggle('off', lock || st.money < cost);
+  }
+  function renderPicker() {
+    const lv = level();
+    $('pkCats').innerHTML = Object.keys(CATS).map(c => `<button class="chip${c === pickCat ? ' on' : ''}" data-c="${c}">${c}</button>`).join('');
+    $('pkList').innerHTML = CATS[pickCat].map((d, i) => {
+      const u = unlockLvl(d), lock = u > lv, cost = buyCost(d);
+      return `<button class="it${lock ? ' lock' : ''}${sel.cat === pickCat && sel.idx === i ? ' sel' : ''}" data-i="${i}"><span class="e">${lock ? '🔒' : d.e}</span><span class="n">${d.n}</span>` +
+        `<span class="p">${lock ? 'Sz.' + u : cost ? fmt(cost) : 'ingyen'}<small>érték: ${fmt(d.v)}</small></span></button>`;
+    }).join('');
+  }
+  $('btnPick').onclick = () => { renderPicker(); $('picker').classList.remove('hide'); };
+  $('pkClose').onclick = () => $('picker').classList.add('hide');
+  $('pkCats').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-c]'); if (b) { pickCat = b.dataset.c; renderPicker(); } });
+  $('pkList').addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-i]'); if (!b) return;
+    const i = +b.dataset.i, d = CATS[pickCat][i];
+    if (unlockLvl(d) > level()) return toast(`Ez a tárgy a(z) ${unlockLvl(d)}. szinttől érhető el`);
+    sel.cat = pickCat; sel.idx = i; st.sel = { cat: sel.cat, idx: sel.idx }; save(); $('picker').classList.add('hide'); refreshPick();
+  });
+  $('btnMake').onclick = () => {
+    audioInit(); const d = selDef(), cost = buyCost(d);
+    if (unlockLvl(d) > level()) return toast(`Zárolva: ${unlockLvl(d)}. szint kell`);
+    if (st.money < cost) return toast('Nincs elég pénz a beszerzéshez');
+    st.money -= cost; save(); scenes[cur].spawn(d, sel.cat); beep(440, .06, 'triangle'); ui();
   };
 
   // ---------- SPRITE-OK: az emojikból pixelart ikon készül ----------
@@ -231,12 +391,12 @@ function start() {
     // ----- tárgyak -----
     function tag(b, o) {
       Object.assign(b, { item: true, alive: true, hp: o.hp, maxHp: o.hp, value: o.v, gen: o.gen || 0, col: o.c, name: o.n || 'Töredék', spr: o.spr, crop: o.crop || null,
-        solid: !!o.solid, dw: o.dw, dh: o.dh, area: o.area, sy: 1, dens: o.d, born: performance.now(), flash: 0, heat: 0, melting: false,
+        solid: !!o.solid, cat: o.cat, dw: o.dw, dh: o.dh, area: o.area, sy: 1, dens: o.d, born: performance.now(), flash: 0, heat: 0, melting: false,
         px: b.position.x, py: b.position.y, pa: b.angle });
       items.push(b); Composite.add(world, b);
       return b;
     }
-    sc.spawn = function (def) {
+    sc.spawn = function (def, cat) {
       const circ = def.shape === 'c';
       const a = circ ? 1 : Math.max(.7, Math.min(1.35, def.w / def.h)), area0 = circ ? Math.PI * def.r * def.r : def.w * def.h;
       const w0 = circ ? def.r * 2 : Math.sqrt(area0 * a), h0 = circ ? def.r * 2 : Math.sqrt(area0 / a);
@@ -247,7 +407,7 @@ function start() {
       const body = circ ? Bodies.circle(x, y, dw / 2, opts, 24) : Bodies.rectangle(x, y, dw, dh, Object.assign(opts, { chamfer: { radius: Math.min(dw, dh) * .1 } }));
       const aw = Math.max(6, Math.round(dw / U)), ah = Math.max(6, Math.round(dh / U));
       const spr = circ && /^\d+ Ft$/.test(def.n) ? coinSprite(def, aw) : emojiSprite(def, aw, ah);
-      tag(body, { hp: def.hp, v: def.v, c: def.c, n: def.n, spr, d: def.d, dw, dh, area: circ ? Math.PI * (dw / 2) ** 2 : dw * dh });
+      tag(body, { hp: def.hp, v: def.v, c: def.c, n: def.n, cat, spr, d: def.d, dw, dh, area: circ ? Math.PI * (dw / 2) ** 2 : dw * dh });
       body.labelT = performance.now() + 2500;
       while (items.length > 110) { const f = items.find(i => i.gen > 0) || items[0]; kill(f, 'melt', true); }
     };
@@ -278,6 +438,7 @@ function start() {
       if (sc.drag && sc.drag.b === it) sc.endDrag();
       const pay = it.value * multOf(how);
       if (pay >= 1) { st.money += pay; save(); ui(); if (!silent && isCur()) pops.push({ x: it.position.x, y: it.position.y, t: 1, txt: '+' + Math.floor(pay).toLocaleString('hu-HU'), c: how === 'melt' ? '#ffb347' : '#ffe27a' }); }
+      if (!silent) track(kind, it, pay);
       if (silent) return;
       burst(it.position.x, it.position.y, Math.min(24, 8 + Math.sqrt(it.area) / 6 | 0), how === 'melt' ? '#ff7a2a' : '#ffd24d');
       if (how !== 'melt') { chunks(it.position.x, it.position.y, Math.min(14, 4 + Math.sqrt(it.area) / 10 | 0), it.col); puff(it.position.x, it.position.y, 3, '#8a8aa0'); fragments(it); }
@@ -681,7 +842,7 @@ function start() {
   }
   function audioTick(dt) {
     if (!AC) return;
-    const sc = scenes[cur], s = sc.snd, on = st.sfx && !paused && !!AC, t = AC.currentTime, set = (g, v) => g.gain.setTargetAtTime(on ? v : 0, t, .06);
+    const sc = scenes[cur], s = sc.snd, on = st.sfx && !paused && !!AC && view !== 'orders', t = AC.currentTime, set = (g, v) => g.gain.setTargetAtTime(on ? v : 0, t, .06);
     const pk = cur === 'press', gk = cur === 'grind', mk = cur === 'melt', pr = pk ? s.press : 0;
     set(A.hyd.g, .07 * pr); A.hyd.o.frequency.setTargetAtTime(55 + 90 * pr, t, .08);
     set(A.whine.g, .012 * pr); A.whine.o.frequency.setTargetAtTime(220 + 520 * pr * (s.dir > 0 ? 1 : .6), t, .08);
@@ -736,17 +897,12 @@ function start() {
   }
   new ResizeObserver(resize).observe(wrap);
 
-  const selCat = $('selCat'), selItem = $('selItem');
-  Object.keys(CATS).forEach(c => selCat.add(new Option(c, c)));
-  const fillItems = () => { selItem.innerHTML = ''; CATS[selCat.value].forEach((d, i) => selItem.add(new Option(`${d.e} ${d.n} (${fmt(d.v)})`, i))); };
-  selCat.onchange = fillItems; fillItems();
-  $('btnMake').onclick = () => { audioInit(); scenes[cur].spawn(CATS[selCat.value][selItem.value]); beep(440, .06, 'triangle'); };
   const menu = $('menu');
   $('btnMenu').onclick = () => { menu.classList.remove('hide'); paused = true; };
   $('btnPlay').onclick = () => { menu.classList.add('hide'); paused = false; audioInit(); };
   $('chkNames').checked = st.names; $('chkNames').onchange = e => { st.names = e.target.checked; save(); };
   $('chkSfx').checked = st.sfx; $('chkSfx').onchange = e => { st.sfx = e.target.checked; save(); };
-  $('btnReset').onclick = () => { if (confirm('Biztosan törlöd a pénzt és a fejlesztéseket?')) { st.money = 0; st.press = st.grind = st.melt = 1; save(); ui(); } };
+  $('btnReset').onclick = () => { if (confirm('Biztosan törlöd az egész mentést (pénz, szint, megbízások, adósság)?')) { try { localStorage.removeItem(SAVE); } catch (e) {} location.reload(); } };
   let toastT; function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1800); }
   $('btnRefresh').onclick = async () => {
     if (!navigator.onLine) return toast('Offline vagy – nem lehet frissíteni');
@@ -761,7 +917,7 @@ function start() {
   $('btnInstall').onclick = async () => { if (deferred) { deferred.prompt(); deferred = null; $('btnInstall').hidden = true; } };
 
   KINDS.forEach(k => { scenes[k] = makeScene(k); });
-  ui(); resize(); requestAnimationFrame(frame);
+  ensureOrders(); ui(); resize(); requestAnimationFrame(frame);
 }
 
 // Matter.js: elsődlegesen a helyi matter.min.js; ha hiányzik, egyszeri CDN-letöltés (a service worker cache-eli).

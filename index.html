@@ -8,48 +8,70 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Zúzó</title>
+<title>Zúzó Kft.</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header id="top">
-  <button id="btnMenu">☰ Menü</button>
-  <div id="money">0 Ft</div>
-  <button id="btnRefresh">⟳ Frissítés</button>
-</header>
-<nav id="tabs">
-  <button id="tab_press" class="tab"></button><button id="tab_grind" class="tab"></button><button id="tab_melt" class="tab"></button>
-</nav>
-<main id="wrap"><canvas id="cv"></canvas></main>
-<footer id="ctl">
-  <div class="row">
-    <select id="selCat" aria-label="Kategória"></select>
-    <select id="selItem" aria-label="Tárgy"></select>
-    <button id="btnMake" class="primary">Létrehoz</button>
+  <button id="btnMenu" class="ico" aria-label="Menü">☰</button>
+  <div id="hud">
+    <div id="money">0 Ft</div>
+    <div id="lvl"><span id="lvlTxt">SZ.1</span><div class="bar"><i id="xpBar"></i></div></div>
   </div>
-  <button id="btnUp" class="up"></button>
+  <button id="btnRefresh" class="ico" aria-label="Frissítés">⟳</button>
+</header>
+<div id="goal" role="button" tabindex="0"></div>
+<nav id="tabs">
+  <button id="tab_press" class="tab"></button><button id="tab_grind" class="tab"></button><button id="tab_melt" class="tab"></button><button id="tab_orders" class="tab"></button>
+</nav>
+<main id="wrap">
+  <canvas id="cv"></canvas>
+  <section id="orders" hidden></section>
+</main>
+<footer id="ctl">
+  <div id="ctlMachine">
+    <div class="row">
+      <button id="btnPick" aria-label="Tárgy választása"></button>
+      <button id="btnMake" class="primary">Létrehoz</button>
+    </div>
+    <button id="btnUp" class="up ml"></button>
+  </div>
+  <div id="ctlOrders" hidden>
+    <div class="sm">💳 Tartozás törlesztése a pénzedből:</div>
+    <div class="pay"><button id="pay25">25%</button><button id="pay50">50%</button><button id="payMax" class="primary">MAX</button></div>
+  </div>
 </footer>
-<div id="menu" class="overlay">
+
+<div id="picker" class="overlay sheet hide">
   <div class="card">
-    <h1 class="logo">ZÚZÓ</h1><div class="sub">HIDRAULIKUS PRÉS</div>
-    <p>Hozz létre tárgyakat a <b>Létrehoz</b> gombbal, majd <b>húzd</b> őket ujjal (vagy egérrel) – a három gép három külön kártyán van, a fülekkel váltasz köztük:</p>
-    <ul>
-      <li><b class="c1">Hidraulikus prés</b> – a lemez lenyomja és szétlapítja őket. Végtelenül fejleszthető!</li>
-      <li><b class="c2">Daráló</b> – forgó pengék, minden töredezik.</li>
-      <li><b class="c3">Olvasztó</b> – lassabb, de 2,5× pénzt ad.</li>
-      <li>Minden gép <b>külön fejleszthető</b>, és a háttérben a másik kártyán is dolgozik. A <b>Filmes hősök</b> kategóriában híres filmszereplők paródia-figurái és filmszörnyek is vannak.</li>
-    </ul>
-    <p class="small">A darabokat is újra zúzhatod. A pénz és a prés szintje automatikusan mentődik.</p>
+    <div class="phead"><b>🛒 Beszerzés – válassz tárgyat</b><button id="pkClose" class="ico" aria-label="Bezár">✕</button></div>
+    <div id="pkCats"></div>
+    <div id="pkList"></div>
+  </div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="card scroll">
+    <h1 class="logo">ZÚZÓ</h1><div class="sub">KFT. · HULLADÉKFELDOLGOZÓ ÜZEM</div>
+    <p class="story">Nagybátyád ócskatelepét örökölted – de a bank tartozást követel. Vezesd az üzemet, teljesíts megbízásokat, fejlődj, és fizesd ki az adósságot!</p>
+    <ol class="how">
+      <li><b>📋 Megbízások</b>: ezek mondják meg, mit zúzz. Teljesítésük pénzt és XP-t ad.</li>
+      <li><b>🛒 Beszerzés</b>: válassz tárgyat alul, és hozd létre (az ára az érték ~35%-a).</li>
+      <li><b>Három gép</b> (külön fülek): <span class="c1">prés</span> és <span class="c2">daráló</span> ×1, <span class="c3">olvasztó</span> lassabb, de ×2,5 pénz. A másik fülön is dolgoznak.</li>
+      <li><b>⬆ Fejlesztés</b>: minden gép külön fejleszthető – a plafont a cég szintje adja. Szintlépés = új tárgyak!</li>
+      <li><b>💳 Cél</b>: törleszd a bank tartozását fejezetről fejezetre.</li>
+    </ol>
     <p id="err" class="err" hidden>⚠ A Matter.js nem töltődött be. Tedd a <code>matter.min.js</code> fájlt a játék mellé (lásd README), vagy kapcsolódj egyszer az internethez.</p>
     <label class="small"><input type="checkbox" id="chkNames" checked> Nevek mutatása</label>
     <label class="small"><input type="checkbox" id="chkSfx" checked> Hang</label>
-    <div class="row">
+    <div class="row wrapr">
       <button id="btnPlay" class="primary">▶ Játék</button>
       <button id="btnInstall" hidden>⬇ Telepítés</button>
-      <button id="btnReset" class="danger">Mentés törlése</button>
+      <button id="btnReset" class="danger">Új játék</button>
     </div>
   </div>
 </div>
+<div id="banner"></div>
 <div id="toast"></div>
 <script src="matter.min.js"></script>
 <script src="items.js"></script>
