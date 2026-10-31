@@ -1,0 +1,16 @@
+{
+  "name": "Zúzó",
+  "short_name": "Zúzó",
+  "description": "Prés, daráló, olvasztó – zúzz szét mindent!",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11151c",
+  "theme_color": "#11151c",
+  "lang": "hu",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#11151c">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Zúzó</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <button id="btnMenu">☰ Menü</button>
+  <div id="money">0 Ft</div>
+  <button id="btnRefresh">⟳ Frissítés</button>
+</header>
+<main id="wrap"><canvas id="cv"></canvas></main>
+<footer id="ctl">
+  <div class="row">
+    <select id="selCat" aria-label="Kategória"></select>
+    <select id="selItem" aria-label="Tárgy"></select>
+    <button id="btnMake" class="primary">Létrehoz</button>
+  </div>
+  <button id="btnUp" class="up"></button>
+</footer>
+<div id="menu" class="overlay">
+  <div class="card">
+    <h1>🔨 Zúzó</h1>
+    <p>Hozz létre tárgyakat a <b>Létrehoz</b> gombbal, majd <b>húzd</b> őket ujjal (vagy egérrel) a három zóna egyikébe:</p>
+    <ul>
+      <li><b class="c1">Hidraulikus prés</b> – a lemez lenyomja és szétlapítja őket. Végtelenül fejleszthető!</li>
+      <li><b class="c2">Daráló</b> – forgó pengék, minden töredezik.</li>
+      <li><b class="c3">Olvasztó</b> – lassabb, de 2,5× pénzt ad.</li>
+    </ul>
+    <p class="small">A darabokat is újra zúzhatod. A pénz és a prés szintje automatikusan mentődik.</p>
+    <p id="err" class="err" hidden>⚠ A Matter.js nem töltődött be. Tedd a <code>matter.min.js</code> fájlt a játék mellé (lásd README), vagy kapcsolódj egyszer az internethez.</p>
+    <label class="small"><input type="checkbox" id="chkSfx" checked> Hang</label>
+    <div class="row">
+      <button id="btnPlay" class="primary">▶ Játék</button>
+      <button id="btnInstall" hidden>⬇ Telepítés</button>
+      <button id="btnReset" class="danger">Mentés törlése</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="matter.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
