@@ -13,7 +13,9 @@ button,select{font:inherit;min-height:46px;border:3px solid var(--line);border-r
 button:active{transform:translateY(2px);filter:brightness(1.3)}
 select{flex:1;min-width:0}
 .primary{background:var(--acc);color:#2a1500;border-color:#ffd23f;box-shadow:inset 3px 3px 0 #ffd88a,inset -3px -3px 0 #b86a00}
-.up{background:#2b2a5c;border-color:#8a7ad8;width:100%;box-shadow:inset 3px 3px 0 #4b49a0,inset -3px -3px 0 #181738}
+.ups{display:flex;gap:6px}
+.up{flex:1;min-width:0;min-height:52px;padding:4px 4px;font-size:.78rem;line-height:1.2;background:#2b2a5c;border-color:#8a7ad8;box-shadow:inset 3px 3px 0 #4b49a0,inset -3px -3px 0 #181738}
+#up_press{border-color:#7fb2ff}#up_grind{border-color:#ffb15c}#up_melt{border-color:#ff6b5c}
 .up.off{background:#241b36;border-color:#4a3a6a;color:#8a7ea0;box-shadow:inset 3px 3px 0 var(--hi),inset -3px -3px 0 var(--lo)}
 .danger{color:#ff7b7b}
 .overlay{position:fixed;inset:0;background:rgba(6,4,10,.9);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10;overflow:auto}
