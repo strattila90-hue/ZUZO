@@ -29,3 +29,11 @@ select{flex:1;min-width:0}
 .card .row{margin-top:12px;flex-wrap:wrap}.card .row button{flex:1}
 #toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#000c;border:2px solid var(--line);padding:8px 14px;opacity:0;transition:.3s;pointer-events:none;z-index:20}
 #toast.show{opacity:1}
+
+#tabs{display:flex;gap:4px;padding:6px 8px 0;background:var(--panel)}
+.tab{flex:1;min-width:0;min-height:46px;padding:2px 4px;font-size:.82rem;line-height:1.15;border-bottom:0}
+.tab small{display:block;opacity:.8;font-size:.68rem}
+#tab_press{border-color:#7fb2ff}#tab_grind{border-color:#ffb15c}#tab_melt{border-color:#ff6b5c}
+.tab.on{background:var(--acc);color:#2a1500;box-shadow:inset 3px 3px 0 #ffd88a,inset -3px -3px 0 #b86a00}
+.up{width:100%;flex:none;min-height:52px;font-size:.8rem;line-height:1.25;text-transform:none}
+.up small{opacity:.85;font-size:.72rem}

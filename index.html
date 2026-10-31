@@ -17,6 +17,9 @@
   <div id="money">0 Ft</div>
   <button id="btnRefresh">⟳ Frissítés</button>
 </header>
+<nav id="tabs">
+  <button id="tab_press" class="tab"></button><button id="tab_grind" class="tab"></button><button id="tab_melt" class="tab"></button>
+</nav>
 <main id="wrap"><canvas id="cv"></canvas></main>
 <footer id="ctl">
   <div class="row">
@@ -24,16 +27,17 @@
     <select id="selItem" aria-label="Tárgy"></select>
     <button id="btnMake" class="primary">Létrehoz</button>
   </div>
-  <div class="ups"><button id="up_press" class="up"></button><button id="up_grind" class="up"></button><button id="up_melt" class="up"></button></div>
+  <button id="btnUp" class="up"></button>
 </footer>
 <div id="menu" class="overlay">
   <div class="card">
     <h1 class="logo">ZÚZÓ</h1><div class="sub">HIDRAULIKUS PRÉS</div>
-    <p>Hozz létre tárgyakat a <b>Létrehoz</b> gombbal, majd <b>húzd</b> őket ujjal (vagy egérrel) a három zóna egyikébe:</p>
+    <p>Hozz létre tárgyakat a <b>Létrehoz</b> gombbal, majd <b>húzd</b> őket ujjal (vagy egérrel) – a három gép három külön kártyán van, a fülekkel váltasz köztük:</p>
     <ul>
       <li><b class="c1">Hidraulikus prés</b> – a lemez lenyomja és szétlapítja őket. Végtelenül fejleszthető!</li>
       <li><b class="c2">Daráló</b> – forgó pengék, minden töredezik.</li>
       <li><b class="c3">Olvasztó</b> – lassabb, de 2,5× pénzt ad.</li>
+      <li>Minden gép <b>külön fejleszthető</b>, és a háttérben a másik kártyán is dolgozik. A <b>Filmes hősök</b> kategóriában híres filmszereplők paródia-figurái és filmszörnyek is vannak.</li>
     </ul>
     <p class="small">A darabokat is újra zúzhatod. A pénz és a prés szintje automatikusan mentődik.</p>
     <p id="err" class="err" hidden>⚠ A Matter.js nem töltődött be. Tedd a <code>matter.min.js</code> fájlt a játék mellé (lásd README), vagy kapcsolódj egyszer az internethez.</p>

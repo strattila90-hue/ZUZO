@@ -98,3 +98,23 @@ const CATS = {
     b('Tévétorony', '🗼', 70, 280, .003, 160000, 25000000, RD), b('Szabadságszobor', '🗽', 80, 260, .004, 250000, 60000000, GR), c('Meteorit', '☄️', 40, .008, 70000, 5000000, '#744210'),
     c('Bolygó', '🪐', 60, .01, 800000, 250000000, '#ed8936')]
 };
+
+// ---- Híres filmes karakterek UTÁNZATAI / figurái (paródia-nevek, nem az eredeti, védett karakterek) ----
+CATS['Filmes hősök (utánzat)'] = [
+  b('Acél-kiborg (T-utánzat)', '🤖', 40, 62, .006, 12000, 400000, '#a0aec0'), b('Folyékony-fém kiborg (utánzat)', '🦾', 38, 60, .006, 16000, 650000, SV),
+  b('Denevér-lovag figura', '🦇', 44, 56, .002, 5000, 250000, '#1a202c'), b('Pók-hős figura', '🕷️', 40, 56, .0015, 4500, 220000, RD),
+  b('Köpenyes szuperhős figura', '🦸', 40, 62, .0018, 6000, 300000, BL), b('Szuperhősnő figura', '🦸‍♀️', 40, 62, .0018, 6000, 300000, RD),
+  b('Vas-páncélos milliárdos (utánzat)', '🦿', 40, 62, .005, 14000, 700000, GD), b('Villám-isten figura (kalapácsos)', '⚡', 42, 62, .003, 9000, 500000, BL),
+  b('Pajzsos kapitány figura', '🛡️', 40, 60, .003, 7000, 350000, BL), b('Fekete párduc-hős figura', '🐆', 44, 58, .002, 6000, 320000, '#1a202c'),
+  b('Zöld dühöngő óriás figura', '🧌', 90, 110, .003, 60000, 2500000, GR), b('Varázslótanonc figura', '🧙', 36, 60, .0012, 2500, 150000, PU),
+  b('Szürke varázsló figura', '🧙‍♂️', 36, 62, .0012, 4000, 220000, '#a0aec0'), b('Fénykard-lovag figura', '⚔️', 40, 60, .002, 5500, 320000, BR),
+  b('Sötét űrlovag figura', '🦹', 42, 62, .003, 9000, 520000, '#1a202c'), b('Kis zöld bölcs figura', '👽', 28, 36, .0008, 1500, 180000, GR),
+  b('Gyűrűúr (sötét) figura', '💍', 36, 60, .004, 15000, 900000, GD), b('Rém-bohóc figura', '🤡', 40, 60, .0012, 3000, 120000, RD),
+  c('Óriás majom (filmszörny)', '🦍', 70, .004, 90000, 4000000, '#4a3728'), b('Óriás gyík (filmszörny)', '🦖', 120, 90, .004, 80000, 3500000, GR),
+  b('Fehér cápa (filmszörny)', '🦈', 130, 60, .003, 45000, 2000000, '#718096'), b('Idegen szörny (xeno-utánzat)', '👾', 60, 70, .004, 30000, 1500000, '#1a202c'),
+  b('Zombi figura', '🧟', 40, 62, .0012, 2500, 90000, GR), b('Vámpírgróf figura', '🧛', 40, 62, .0012, 3000, 140000, '#1a202c'),
+  b('Kísértet', '👻', 40, 50, .0004, 400, 60000, WH), b('Kalózkapitány figura', '🏴‍☠️', 44, 60, .0014, 3500, 160000, '#1a202c'),
+  b('Cowboy-hős figura', '🤠', 40, 60, .0014, 3000, 130000, BR), b('Űrhajós figura', '👨‍🚀', 40, 62, .002, 5000, 380000, WH),
+  b('Nindzsa figura', '🥷', 38, 60, .0012, 2800, 150000, '#1a202c'), b('Robot-kutya', '🐕', 50, 40, .005, 7000, 260000, SV),
+  b('Jégkirálynő figura (utánzat)', '👑', 38, 62, .0012, 3000, 200000, '#63b3ed'), b('Bűvész figura', '🎩', 40, 56, .0012, 1800, 90000, '#1a202c')
+];
