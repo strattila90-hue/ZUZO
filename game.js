@@ -229,53 +229,168 @@ function start() {
     } catch (e) {}
   }
 
-  // ---------- RAJZOLÁS ----------
-  function burst(x, y, n, c) { for (let i = 0; i < n && sparks.length < 300; i++) sparks.push({ x, y, vx: rnd(-180, 180), vy: rnd(-220, 40), t: rnd(.3, .7), c }); }
+  // ---------- RAJZOLÁS (pixel art) ----------
+  // Minden egy kis felbontású vászonra készül (1 "pixel" = U világ-px); a CSS (image-rendering: pixelated) élesen nagyítja.
+  let U = 2, lw = 0, lh = 0, cc = ctx;
+  const bgc = document.createElement('canvas'), bctx = bgc.getContext('2d');
+  const q = v => Math.round(v / U) * U;
+  const hs = (a, b) => { const s = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return s - Math.floor(s); };
+  function R(x, y, w, h, col) { cc.fillStyle = col; const X = q(x), Y = q(y); cc.fillRect(X, Y, Math.max(U, q(x + w) - X), Math.max(U, q(y + h) - Y)); }
+  function hazard(x, y, w, h) { // sárga-fekete figyelmeztető csík
+    const n = Math.round(w / U), rows = Math.round(h / U);
+    for (let r = 0; r < rows; r++) for (let col = 0; col < n;) {
+      const seg = Math.min(n - col, 4 - ((col + r) % 4)), on = ((col + r) >> 2) & 1;
+      R(x + col * U, y + r * U, seg * U, U, on ? '#ffc21a' : '#1a1620'); col += seg;
+    }
+  }
+  function steel(x, y, w, h) { // szegecselt acéloszlop
+    R(x, y, w, h, '#3d3d4f'); R(x, y, U, h, '#6a6a80'); R(x + w - U, y, U, h, '#25252f'); R(x, y, w, U, '#6a6a80');
+    for (let yy = y + 4 * U; yy < y + h - 2 * U; yy += 10 * U) { R(x + U, yy, U, U, '#a4a4bc'); R(x + w - 2 * U, yy, U, U, '#a4a4bc'); }
+  }
+  function label(txt, x, y, size, col) {
+    cc.font = `bold ${size}px "Courier New",monospace`; cc.textAlign = 'center'; cc.textBaseline = 'middle';
+    cc.fillStyle = '#000'; cc.fillText(txt, x + U, y + U); cc.fillStyle = col; cc.fillText(txt, x, y);
+  }
+  function plaque(i, txt, mult, col) {
+    const x = i * L.zw + 8, w = L.zw - 16, y = 4 * U, h = 11 * U;
+    R(x, y, w, h, '#0e0b14'); R(x, y, w, U, col); R(x, y + h - U, w, U, col); R(x, y, U, h, col); R(x + w - U, y, U, h, col);
+    label(txt + ' ' + mult, x + w / 2, y + h / 2, Math.min(7 * U, w / ((txt.length + mult.length + 1) * .62)), col);
+  }
+
+  // Statikus háttér: egyszer rajzoljuk, átméretezéskor újra
+  function paintBg() {
+    bgc.width = lw; bgc.height = lh; cc = bctx; cc.setTransform(lw / W, 0, 0, lh / H, 0, 0);
+    const zw = L.zw, ft = L.floorTop;
+    cc.fillStyle = '#14111c'; cc.fillRect(0, 0, W + U, H + U);
+    const bw = 10 * U, bh = 5 * U; // téglafal
+    for (let y = 0, row = 0; y < ft; y += bh, row++) for (let x = -(row % 2) * bw / 2; x < W; x += bw) {
+      const h = hs(x, y); R(x + U, y + U, bw - U, bh - U, h < .33 ? '#1c1827' : h < .66 ? '#221d30' : '#181421');
+    }
+    [.17, .5, .83].forEach(f => { R(W * f, 0, 3 * U, ft, '#2b2538'); R(W * f, 0, U, ft, '#3d3550'); }); // csövek
+    ['rgba(90,110,220,.10)', 'rgba(255,150,60,.08)', 'rgba(255,70,50,.12)'].forEach((c, i) => { cc.fillStyle = c; cc.fillRect(i * zw, 0, zw, ft); });
+    R(0, ft, W + U, L.fh + U, '#2e2b3a'); R(0, ft, W + U, U, '#6a6580'); // padló
+    for (let x = 0; x < W; x += 14 * U) R(x, ft + 2 * U, U, L.fh, '#221f2c');
+    hazard(0, H - 3 * U, W + U, 3 * U);
+
+    // függő kezdőpolc (láncokon)
+    const sw = W * .3, sx = W / 2 - sw / 2, sy = L.shelfY;
+    for (const cx of [sx + 6 * U, sx + sw - 6 * U]) for (let y = 0; y < sy - 6; y += 4 * U) R(cx, y, U, 3 * U, '#8a8aa0');
+    R(sx, sy - 5, sw, 10, '#6e5430'); R(sx, sy - 5, sw, U, '#a88a52'); R(sx, sy + 3, sw, U, '#3d2e18');
+    for (let x = sx + 10 * U; x < sx + sw; x += 10 * U) R(x, sy - 5 + U, U, 8, '#4d3a20');
+
+    // 1) PRÉS: váz, hengerház, ágy
+    const cw = 5 * U, ph = plate.bounds.max.y - plate.bounds.min.y;
+    steel(0, 0, cw, ft); steel(zw - 4 - cw, 0, cw, ft); steel(0, 0, zw - 4, 3 * U);
+    const hx = zw * .28, hw = zw * .44, hy = 16 * U;
+    L.cylB = Math.min(plate.restY - ph / 2 - 3 * U, hy + H * .08);
+    R(hx, hy, hw, L.cylB - hy, '#4a3f66'); R(hx, hy, U, L.cylB - hy, '#7b6aa8'); R(hx + hw - U, hy, U, L.cylB - hy, '#2c2540');
+    for (let y = hy + 4 * U; y < L.cylB - 2 * U; y += 6 * U) R(hx, y, hw, U, '#352c4b');
+    R(hx - 2 * U, hy, hw + 4 * U, 3 * U, '#6a6a80'); R(hx - 2 * U, hy + 2 * U, hw + 4 * U, U, '#25252f');
+    R(12, ft - 2 * U, zw - 24, 2 * U, '#4a4a5e'); hazard(10, ft - 2 * U, 10 * U, 2 * U); hazard(zw - 10 - 10 * U, ft - 2 * U, 10 * U, 2 * U);
+
+    // 2) DARÁLÓ: acélház, szellőzőrács
+    const r = zw * .23, y0 = ft - r * 2.9, gx = zw + 6, gw = zw - 12;
+    R(gx, y0, gw, ft - y0, '#262633'); R(gx + 4 * U, y0 + 4 * U, gw - 8 * U, ft - y0 - 4 * U, '#15121d');
+    for (let x = gx + 6 * U; x < gx + gw - 6 * U; x += 6 * U) R(x, y0 + 5 * U, U, ft - y0 - 5 * U, '#201c2c');
+    steel(gx, y0, 4 * U, ft - y0); steel(gx + gw - 4 * U, y0, 4 * U, ft - y0); hazard(gx, y0 - 3 * U, gw, 3 * U);
+
+    // 3) OLVASZTÓ: téglakemence, kémény
+    const mx = 2 * zw + 6, mw = zw - 12, my = H * .33;
+    for (let y = my, row = 0; y < ft; y += 4 * U, row++) for (let x = mx - (row % 2) * 3 * U; x < mx + mw; x += 6 * U) {
+      if (x < mx) continue; const h = hs(x, y); R(x, y + U, 5 * U, 3 * U, h < .5 ? '#4a1f1f' : '#5c2727');
+    }
+    R(mx + 3 * U, my + 3 * U, mw - 6 * U, ft - my - 3 * U, '#1e0c0c');
+    const gr = cc.createLinearGradient(0, ft, 0, my); gr.addColorStop(0, 'rgba(255,90,20,.5)'); gr.addColorStop(1, 'rgba(255,90,20,0)');
+    cc.fillStyle = gr; cc.fillRect(mx + 3 * U, my + 3 * U, mw - 6 * U, ft - my - 3 * U);
+    steel(mx, my, 4 * U, ft - my); steel(mx + mw - 4 * U, my, 4 * U, ft - my); steel(mx, my - 3 * U, mw, 3 * U);
+    steel(2 * zw + zw * .45, 0, 6 * U, my - 3 * U);
+    L.lavaTop = ft - H * .12; L.mx0 = mx + 4 * U; L.mx1 = mx + mw - 4 * U;
+
+    // elválasztók
+    for (let i = 1; i <= 2; i++) { const h = H * .16; steel(zw * i - 4, ft - h, 8, h); hazard(zw * i - 4, ft - h, 8, 3 * U); }
+    plaque(0, 'PRÉS', 'x1', '#7fb2ff'); plaque(1, 'DARÁLÓ', 'x1', '#ffb15c'); plaque(2, 'OLVASZTÓ', 'x2,5', '#ff6b5c');
+  }
+
+  function burst(x, y, n, c) { for (let i = 0; i < n && sparks.length < 300; i++) sparks.push({ x, y, vx: rnd(-180, 180), vy: rnd(-220, 40), t: rnd(.3, .7), c: c || '#ffd24d' }); }
   function poly(b, fill, stroke) {
     const v = b.vertices; ctx.beginPath(); ctx.moveTo(v[0].x, v[0].y);
     for (let i = 1; i < v.length; i++) ctx.lineTo(v[i].x, v[i].y);
-    ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); }
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = U; ctx.stroke(); }
   }
   function render(dt) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#141922'); g.addColorStop(1, '#1d2430');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    const zones = [['PRÉS', '×1', 'rgba(60,120,200,.18)', '#7fb2ff'], ['DARÁLÓ', '×1', 'rgba(255,150,60,.16)', '#ffb15c'], ['OLVASZTÓ', '×2,5', 'rgba(255,70,50,.18)', '#ff6b5c']];
-    const fs = Math.max(11, 15 * S);
-    zones.forEach((z, i) => {
-      ctx.fillStyle = z[2]; ctx.fillRect(i * L.zw, 0, L.zw, L.floorTop);
-      ctx.fillStyle = z[3]; ctx.font = `800 ${fs}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText(z[0] + ' ' + z[1], i * L.zw + L.zw / 2, 6);
-    });
-    // láva
-    const pulse = .55 + .25 * Math.sin(performance.now() / 250), lh = H * .15;
-    const lg = ctx.createLinearGradient(0, L.floorTop - lh, 0, L.floorTop); lg.addColorStop(0, 'rgba(255,90,30,0)'); lg.addColorStop(1, `rgba(255,120,30,${pulse})`);
-    ctx.fillStyle = lg; ctx.fillRect(2 * L.zw, L.floorTop - lh, L.zw, lh);
-    // dugattyú
-    ctx.fillStyle = '#6b7686'; ctx.fillRect(L.zw / 2 - 7, 0, 14, plate.position.y);
-    statics.forEach(b => { if (!b.hide && !b.zk) poly(b, b.col); });
-    rotors.forEach(r => { r.parts.slice(1).forEach(p => poly(p, '#c9ccd3', '#5b6270')); ctx.beginPath(); ctx.arc(r.home.x, r.home.y, 9 * S, 0, 7); ctx.fillStyle = '#ff9f1c'; ctx.fill(); });
-    poly(plate, '#8aa4c8', '#3b5278');
+    if (!lw || !plate) return;
+    cc = ctx; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bgc, 0, 0);
+    ctx.setTransform(lw / W, 0, 0, lh / H, 0, 0);
+    const now = performance.now(), zw = L.zw, ft = L.floorTop;
+
+    // láva (animált) – a tárgyak mögött, felette áttetsző réteg
+    for (let x = L.mx0; x < L.mx1; x += 2 * U) {
+      const t = L.lavaTop + Math.sin(now / 400 + x * .08) * U * 1.4, h = ft - t;
+      R(x, t, 2 * U, h, '#ff4a1a'); R(x, t + h * .55, 2 * U, h, '#c02a10'); R(x, t, 2 * U, 1.2 * U, '#ffd23f'); R(x, t + 1.2 * U, 2 * U, U, '#ff9a1f');
+    }
+    if (Math.random() < .25) sparks.push({ x: rnd(L.mx0, L.mx1), y: L.lavaTop, vx: rnd(-10, 10), vy: -rnd(30, 90), g: 40, t: rnd(.6, 1.2), c: '#ffb347' });
+
+    // hidraulikus dugattyú + jelzőlámpák
+    const p = plate, rx = zw / 2, rw = q(zw * .12), py = p.position.y - (p.bounds.max.y - p.bounds.min.y) / 2;
+    R(rx - rw / 2, L.cylB, rw, py - L.cylB + U, '#9aa0b8'); R(rx - rw / 2, L.cylB, U, py - L.cylB, '#d6dbef'); R(rx + rw / 2 - U, L.cylB, U, py - L.cylB, '#5a5f78');
+    R(rx - rw / 2 - U, L.cylB, rw + 2 * U, 2 * U, '#2c2540');
+    const phs = p.pp.ph, ly = 18 * U;
+    R(13, ly, 6 * U, 14 * U, '#0e0b14');
+    R(13 + 2 * U, ly + 2 * U, 2 * U, 2 * U, phs === 'wait' ? '#3cff3c' : '#1d4a1d');
+    R(13 + 2 * U, ly + 6 * U, 2 * U, 2 * U, phs === 'up' ? '#ffe03c' : '#4a4a1d');
+    R(13 + 2 * U, ly + 10 * U, 2 * U, 2 * U, (phs === 'down' || phs === 'hold') ? '#ff3c3c' : '#4a1d1d');
+
+    // prés lemez
+    const pw = zw - 26, px = p.position.x - pw / 2, phh = p.bounds.max.y - p.bounds.min.y;
+    R(px, py, pw, phh, '#6a6f88'); R(px, py, pw, U, '#a8aec8'); R(px, py + phh - U, pw, U, '#2a2c3c');
+    hazard(px + 4 * U, py + phh - 4 * U, pw - 8 * U, 2 * U);
+    for (let x = px + 2 * U; x < px + pw - 2 * U; x += 12 * U) R(x, py + 2 * U, U, U, '#c8cce0');
+
+    // tárgyak
     for (const b of items) {
-      poly(b, b.col + (b.emoji ? '88' : 'cc'), '#0006');
+      poly(b, b.col + (b.emoji ? '88' : 'dd'), '#0a0810');
       if (b.emoji) {
         ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle); ctx.scale(1, Math.max(.4, b.sy));
         ctx.font = `${Math.max(8, Math.min(110, Math.min(b.dw, b.dh * 1.1) * .95))}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(b.emoji, 0, 0); ctx.restore();
       }
       if (b.hp < b.maxHp) { // életerő-csík
-        const w = Math.max(18, b.dw * .8), x = b.position.x - w / 2, y = b.bounds.min.y - 7;
-        ctx.fillStyle = '#000a'; ctx.fillRect(x, y, w, 4); ctx.fillStyle = '#6fe06f'; ctx.fillRect(x, y, w * Math.max(0, b.hp / b.maxHp), 4);
+        const w = Math.max(8 * U, b.dw * .8), x = b.position.x - w / 2, y = b.bounds.min.y - 5 * U, k = Math.max(0, b.hp / b.maxHp);
+        R(x - U, y - U, w + 2 * U, 3 * U, '#0a0810'); R(x, y, w * k, U, k > .5 ? '#6fe06f' : k > .25 ? '#ffd23f' : '#ff4a3a');
       }
     }
+
+    // fogazott darálórotorok
+    rotors.forEach(r => {
+      const bt = Math.max(8, 9 * S);
+      ctx.save(); ctx.translate(r.home.x, r.home.y); ctx.rotate(r.angle);
+      for (let i = 0; i < 3; i++) {
+        ctx.save(); ctx.rotate(i * Math.PI / 3);
+        ctx.fillStyle = '#0a0810'; ctx.fillRect(-r.r - U, -bt / 2 - 2 * U, 2 * r.r + 2 * U, bt + 4 * U);
+        ctx.fillStyle = '#8a90a8'; ctx.fillRect(-r.r, -bt / 2, 2 * r.r, bt);
+        ctx.fillStyle = '#c4c9de'; ctx.fillRect(-r.r, -bt / 2, 2 * r.r, U);
+        ctx.fillStyle = '#d8dcee';
+        for (const s of [-1, 1]) for (const k of [.4, .7, 1]) { const tx = s * r.r * k - 1.5 * U; ctx.fillRect(tx, -bt / 2 - 2 * U, 3 * U, 2 * U); ctx.fillRect(tx, bt / 2, 3 * U, 2 * U); }
+        ctx.restore();
+      }
+      ctx.beginPath(); ctx.arc(0, 0, r.r * .3, 0, 7); ctx.fillStyle = '#3a3d52'; ctx.fill(); ctx.lineWidth = U; ctx.strokeStyle = '#0a0810'; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r.r * .12, 0, 7); ctx.fillStyle = '#ff9f1c'; ctx.fill();
+      ctx.restore();
+    });
+
+    // olvasztó: áttetsző láva a tárgyak előtt (elmerülés hatása)
+    ctx.fillStyle = 'rgba(255,80,20,.35)'; ctx.fillRect(q(L.mx0), q(L.lavaTop + 2 * U), q(L.mx1 - L.mx0), ft - L.lavaTop - 2 * U);
+
+    // szikrák, törmelék
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i]; s.t -= dt; if (s.t <= 0) { sparks.splice(i, 1); continue; }
-      s.vy += 600 * dt; s.x += s.vx * dt; s.y += s.vy * dt; ctx.fillStyle = s.c; ctx.fillRect(s.x, s.y, 3, 3);
+      s.vy += (s.g == null ? 600 : s.g) * dt; s.x += s.vx * dt; s.y += s.vy * dt; R(s.x, s.y, U, U, s.c);
     }
-    ctx.font = `800 ${Math.max(13, 16 * S)}px system-ui`;
+    // pénz felirat
+    ctx.font = `bold ${Math.max(6 * U, 16 * S)}px "Courier New",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let i = pops.length - 1; i >= 0; i--) {
-      const p = pops[i]; p.t -= dt; if (p.t <= 0) { pops.splice(i, 1); continue; }
-      ctx.globalAlpha = Math.min(1, p.t * 2); ctx.fillStyle = p.c; ctx.fillText(p.txt, p.x, p.y - (1 - p.t) * 40); ctx.globalAlpha = 1;
+      const pp = pops[i]; pp.t -= dt; if (pp.t <= 0) { pops.splice(i, 1); continue; }
+      const yy = pp.y - (1 - pp.t) * 40; ctx.fillStyle = '#000'; ctx.fillText(pp.txt, pp.x + U, yy + U); ctx.fillStyle = pp.c; ctx.fillText(pp.txt, pp.x, yy);
     }
   }
 
@@ -289,9 +404,9 @@ function start() {
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     W = wrap.clientWidth; H = wrap.clientHeight; if (!W || !H) return;
-    cv.width = W * dpr; cv.height = H * dpr;
+    U = Math.max(2, Math.round(Math.min(W, H) / 200)); lw = Math.ceil(W / U); lh = Math.ceil(H / U); cv.width = lw; cv.height = lh;
     S = Math.max(.45, Math.min(1.2, W / 800, H / 520));
-    endDrag(); build();
+    endDrag(); build(); paintBg();
     items.slice().forEach(b => { if (b.position.x > W || b.position.y > H || b.position.x < 0) kill(b, 'melt', true); });
   }
   new ResizeObserver(resize).observe(wrap);
