@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#11151c">
+<meta name="theme-color" content="#1b1626">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zúzó">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -32,7 +35,7 @@
   <div id="ctlMachine">
     <div class="row">
       <button id="btnPick" aria-label="Tárgy választása"></button>
-      <button id="btnMake" class="primary">Létrehoz</button>
+      <button id="btnMake" class="primary" aria-label="Létrehoz (nyomva tartva folyamatosan)">Létrehoz<small>nyomva tartva: sorozat</small></button>
     </div>
     <button id="btnUp" class="up ml"></button>
   </div>
@@ -66,6 +69,7 @@
     <label class="small"><input type="checkbox" id="chkSfx" checked> Hang</label>
     <div class="row wrapr">
       <button id="btnPlay" class="primary">▶ Játék</button>
+      <button id="btnFull">⛶ Teljes képernyő</button>
       <button id="btnInstall" hidden>⬇ Telepítés</button>
       <button id="btnReset" class="danger">Új játék</button>
     </div>

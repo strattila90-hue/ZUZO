@@ -214,12 +214,46 @@ function start() {
     if (unlockLvl(d) > level()) return toast(`Ez a tárgy a(z) ${unlockLvl(d)}. szinttől érhető el`);
     sel.cat = pickCat; sel.idx = i; st.sel = { cat: sel.cat, idx: sel.idx }; save(); $('picker').classList.add('hide'); refreshPick();
   });
-  $('btnMake').onclick = () => {
+  // Létrehozás: koppintásra 1 db; nyomva tartva folyamatosan jönnek a tárgyak (egyre gyorsabban, amíg van pénz és hely)
+  function make(quiet) {
     audioInit(); const d = selDef(), cost = buyCost(d);
-    if (unlockLvl(d) > level()) return toast(`Zárolva: ${unlockLvl(d)}. szint kell`);
-    if (st.money < cost) return toast('Nincs elég pénz a beszerzéshez');
-    st.money -= cost; save(); scenes[cur].spawn(d, sel.cat); beep(440, .06, 'triangle'); ui();
-  };
+    if (unlockLvl(d) > level()) { toast(`Zárolva: ${unlockLvl(d)}. szint kell`); return 'stop'; }
+    if (st.money < cost) { toast('Nincs elég pénz a beszerzéshez'); return 'stop'; }
+    const r = scenes[cur].spawn(d, sel.cat);
+    if (r === 'full') { toast('A gép tele van – várd meg, míg feldolgozza'); return 'stop'; }
+    if (r === 'busy') { if (!quiet) toast('Az adagoló foglalt, egy pillanat…'); return 'busy'; }
+    st.money -= cost; save(); beep(440, .06, 'triangle'); ui(); return 'ok';
+  }
+  let holdT = 0, holding = false;
+  function stopHold() { holding = false; clearTimeout(holdT); }
+  function startHold(e) {
+    e.preventDefault(); stopHold();
+    if (make(false) === 'stop') return;
+    holding = true; let delay = 420;
+    const tick = () => {
+      if (!holding) return;
+      const r = make(true);
+      if (r === 'stop') return stopHold();
+      if (r === 'ok') delay = Math.max(90, delay * .85);
+      holdT = setTimeout(tick, r === 'busy' ? 60 : delay);
+    };
+    holdT = setTimeout(tick, delay);
+  }
+  const mk = $('btnMake');
+  mk.addEventListener('pointerdown', e => { try { mk.setPointerCapture(e.pointerId); } catch (x) {} startHold(e); });
+  ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'].forEach(t => mk.addEventListener(t, stopHold));
+  mk.addEventListener('contextmenu', e => e.preventDefault());
+  mk.addEventListener('click', e => { if (e.detail === 0) make(false); }); // billentyűzetről (Enter/Szóköz)
+  document.addEventListener('visibilitychange', stopHold);
+
+  // Teljes képernyő (Android/asztali böngésző; iPhone-on a rendszer nem engedi, ott a telepített alkalmazás tölti ki a kijelzőt)
+  function goFull() {
+    try {
+      const el = document.documentElement, f = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (f && !document.fullscreenElement && !document.webkitFullscreenElement) { const p = f.call(el, { navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) {}
+  }
+  $('btnFull').onclick = () => { if (document.fullscreenElement || document.webkitFullscreenElement) { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} } else goFull(); };
 
   // ---------- SPRITE-OK: az emojikból pixelart ikon készül ----------
   const sprCache = new Map();
@@ -403,13 +437,16 @@ function start() {
       let k = Math.max(S, 13 * U / Math.min(w0, h0));
       k = Math.min(k, L.maxW / Math.max(w0, h0), L.maxH / h0);
       const dw = w0 * k, dh = h0 * k, x = L.spawnX + rnd(-4, 4), y = L.spawnTop + dh / 2;
+      if (items.length >= 100) return 'full';
+      if (items.some(b => b.bounds.max.x > x - dw / 2 && b.bounds.min.x < x + dw / 2 && b.bounds.max.y > y - dh / 2 && b.bounds.min.y < y + dh / 2)) return 'busy'; // az adagoló még foglalt
       const opts = { density: def.d, friction: .5, restitution: .15, collisionFilter: { category: 2 } };
       const body = circ ? Bodies.circle(x, y, dw / 2, opts, 24) : Bodies.rectangle(x, y, dw, dh, Object.assign(opts, { chamfer: { radius: Math.min(dw, dh) * .1 } }));
       const aw = Math.max(6, Math.round(dw / U)), ah = Math.max(6, Math.round(dh / U));
       const spr = circ && /^\d+ Ft$/.test(def.n) ? coinSprite(def, aw) : emojiSprite(def, aw, ah);
       tag(body, { hp: def.hp, v: def.v, c: def.c, n: def.n, cat, spr, d: def.d, dw, dh, area: circ ? Math.PI * (dw / 2) ** 2 : dw * dh });
       body.labelT = performance.now() + 2500;
-      while (items.length > 110) { const f = items.find(i => i.gen > 0) || items[0]; kill(f, 'melt', true); }
+      while (items.length > 130) { const f = items.find(i => i.gen > 0) || items[0]; kill(f, 'melt', true); }
+      return true;
     };
     function fragments(it) {
       if (it.gen >= 2) return;
@@ -436,7 +473,7 @@ function start() {
       if (!it.alive) return;
       it.alive = false; Composite.remove(world, it); items.splice(items.indexOf(it), 1);
       if (sc.drag && sc.drag.b === it) sc.endDrag();
-      const pay = it.value * multOf(how);
+      const pay = silent ? 0 : it.value * multOf(how);
       if (pay >= 1) { st.money += pay; save(); ui(); if (!silent && isCur()) pops.push({ x: it.position.x, y: it.position.y, t: 1, txt: '+' + Math.floor(pay).toLocaleString('hu-HU'), c: how === 'melt' ? '#ffb347' : '#ffe27a' }); }
       if (!silent) track(kind, it, pay);
       if (silent) return;
@@ -899,7 +936,7 @@ function start() {
 
   const menu = $('menu');
   $('btnMenu').onclick = () => { menu.classList.remove('hide'); paused = true; };
-  $('btnPlay').onclick = () => { menu.classList.add('hide'); paused = false; audioInit(); };
+  $('btnPlay').onclick = () => { menu.classList.add('hide'); paused = false; audioInit(); goFull(); };
   $('chkNames').checked = st.names; $('chkNames').onchange = e => { st.names = e.target.checked; save(); };
   $('chkSfx').checked = st.sfx; $('chkSfx').onchange = e => { st.sfx = e.target.checked; save(); };
   $('btnReset').onclick = () => { if (confirm('Biztosan törlöd az egész mentést (pénz, szint, megbízások, adósság)?')) { try { localStorage.removeItem(SAVE); } catch (e) {} location.reload(); } };
