@@ -37,6 +37,14 @@
       <button id="btnPick" aria-label="Tárgy választása"></button>
       <button id="btnMake" class="primary" aria-label="Létrehoz (nyomva tartva folyamatosan)">Létrehoz<small>nyomva tartva: sorozat</small></button>
     </div>
+    <div id="ctlPress" class="row" hidden>
+      <button id="btnPress" class="sw ml" aria-label="Prés kapcsoló">🔴 PRÉS KAPCSOLÓ<small>nyomd: 1 ütés · tartsd: folyamatos</small></button>
+      <button id="btnAuto" class="autob ml" hidden></button>
+    </div>
+    <div id="ctlMelt" hidden>
+      <div class="trow"><span id="tempRead">🌡 0 °C → KI</span><button id="tempOff">⛔ KI</button></div>
+      <input id="tempSet" type="range" min="0" max="2000" step="50" value="0" aria-label="Kemence hőmérséklete">
+    </div>
     <button id="btnUp" class="up ml"></button>
   </div>
   <div id="ctlOrders" hidden>
@@ -60,7 +68,7 @@
     <ol class="how">
       <li><b>📋 Megbízások</b>: ezek mondják meg, mit zúzz. Teljesítésük pénzt és XP-t ad.</li>
       <li><b>🛒 Beszerzés</b>: válassz tárgyat alul, és hozd létre (az ára az érték ~35%-a).</li>
-      <li><b>Három gép</b> (külön fülek): <span class="c1">prés</span> és <span class="c2">daráló</span> ×1, <span class="c3">olvasztó</span> lassabb, de ×2,5 pénz. A másik fülön is dolgoznak.</li>
+      <li><b>Három gép</b> (külön fülek): a <span class="c1">prést</span> te működteted a kapcsolóval, a <span class="c2">daráló</span> magától zúz, az <span class="c3">olvasztót</span> a hőfokgombbal fűtöd be (a fűtés pénzbe kerül, de ×2,5 pénzt ad).</li>
       <li><b>⬆ Fejlesztés</b>: minden gép külön fejleszthető – a plafont a cég szintje adja. Szintlépés = új tárgyak!</li>
       <li><b>💳 Cél</b>: törleszd a bank tartozását fejezetről fejezetre.</li>
     </ol>

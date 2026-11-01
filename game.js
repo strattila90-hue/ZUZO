@@ -17,7 +17,7 @@ function start() {
 
   // ---------- MENTÉS ----------
   const SAVE = 'zuzo_save_v1';
-  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null };
+  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null, tset: 0, auto: false };
   try { Object.assign(st, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
   if (!KINDS.includes(st.card)) st.card = 'press';
   if (!st.stats) st.stats = { kills: 0, earned: 0 };
@@ -34,6 +34,13 @@ function start() {
   const multOf = k => k === 'melt' ? meltMult() : MULT[k];
   const costOf = k => Math.round(LV[k].base * Math.pow(1.6, st[k] - 1));
   const tier = k => Math.min(3, Math.floor((st[k] - 1) / 5)); // vizuális fokozat 5 szintenként
+  // olvasztó: kézi hőfokszabályzás – a hőmérséklet adja az olvadás sebességét és a fém minőségét, a fűtés pénzbe kerül
+  const c01 = v => Math.max(0, Math.min(1, v));
+  const tempFactor = T => Math.max(0, Math.min(1.6, (T - 600) / 900));                 // 600 °C alatt nem olvad, 1500 °C = alapsebesség
+  const fuelPerSec = T => Math.pow(T / 1000, 2) * .8 * Math.pow(1.22, st.melt - 1);    // tüzelőanyag Ft/mp
+  function mixHex(a, b, t) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16), ch = sh => Math.round(((pa >> sh) & 255) + (((pb >> sh) & 255) - ((pa >> sh) & 255)) * t); return `rgb(${ch(16)},${ch(8)},${ch(0)})`; }
+  const LAVA = [['#3a2a28', '#2a1a18', '#1c1010', '#140a0a'], ['#ff7a1a', '#d83a12', '#a02210', '#701208'], ['#fff2a0', '#ffd23f', '#ff8c1a', '#e03a14']];
+  const lavaCols = tf => { const [a, b, t] = tf < .5 ? [LAVA[0], LAVA[1], tf * 2] : [LAVA[1], LAVA[2], (tf - .5) * 2]; return a.map((c, i) => mixHex(c, b[i], t)); };
   const effText = k => k === 'press' ? `${Math.round(pressDps())} → ${Math.round(pressDps() * 1.3)} sebzés/mp`
     : k === 'grind' ? `${Math.round(bladeDps())} → ${Math.round(bladeDps() * 1.28)} sebzés/mp · gyorsabb forgás`
     : `×${meltMult().toFixed(1)} → ×${(meltMult() + .1).toFixed(1)} szorzó · gyorsabb olvadás`;
@@ -138,7 +145,7 @@ function start() {
         `<div class="of"><span>${prog}</span><b>+${fmt(o.money)} · +${o.xp} XP</b><button class="mini" data-r="${i}">Csere${cost ? ' −' + fmt(cost) : ''}</button></div></div>`;
     }).join('');
     $('orders').innerHTML =
-      (st.stats.kills < 12 ? `<div class="card2 tip"><b>💡 Hogyan működik?</b><br>1) Lent válassz tárgyat és nyomd meg a <b>Létrehoz</b> gombot (a tárgy beszerzési ára az érték ~35%-a).<br>2) A gép feldolgozza: a <b>prés</b> és a <b>daráló</b> ×1, az <b>olvasztó</b> lassabb, de ×2,5 pénzt ad.<br>3) A haszonból <b>fejleszd a gépet</b>, a megbízások XP-t adnak: új szint = új tárgyak és magasabb gép-plafon.<br>4) Végső cél: <b>fizesd ki a bank tartozását</b>!</div>` : '') +
+      (st.stats.kills < 12 ? `<div class="card2 tip"><b>💡 Hogyan működik?</b><br>1) Lent válassz tárgyat és nyomd meg a <b>Létrehoz</b> gombot (a tárgy beszerzési ára az érték ~35%-a).<br>2) A <b>prést</b> te működteted a kapcsolóval, a <b>daráló</b> magától zúz, az <b>olvasztót</b> a hőfokgombbal kell befűtened (a fűtés pénzbe kerül) – cserébe ×2,5 pénzt ad.<br>3) A haszonból <b>fejleszd a gépet</b>, a megbízások XP-t adnak: új szint = új tárgyak és magasabb gép-plafon.<br>4) Végső cél: <b>fizesd ki a bank tartozását</b>!</div>` : '') +
       `<div class="card2"><div class="h">🏭 Zúzó Kft. · Szint ${lv}</div><div class="bar big"><i style="width:${li.rem / li.need * 100}%"></i></div>` +
       `<div class="sm">${li.rem} / ${li.need} XP · gépek max. szintje: ${capOf()}<br>Következő szint: ${nxt.length ? '🔓 ' + nxt.slice(0, 6).map(d => d.e).join(' ') + (nxt.length > 6 ? ' +' + (nxt.length - 6) : '') + ' új tárgy' : 'magasabb gép-plafon'}</div></div>` +
       `<div class="card2"><div class="h">📖 ${st.chapter + 1}. fejezet: ${ch.name}</div><div class="sm">${ch.story}</div><div class="bar big debt"><i style="width:${Math.min(100, st.paid / ch.debt * 100)}%"></i></div>` +
@@ -155,7 +162,7 @@ function start() {
   function ui() {
     $('money').textContent = fmt(st.money);
     const li = lvlInfo(); $('lvlTxt').textContent = 'SZ.' + li.l; $('xpBar').style.width = (li.rem / li.need * 100) + '%';
-    KINDS.forEach(k => { const t = $('tab_' + k); t.innerHTML = `${LV[k].icon} ${LV[k].name}<small>Sz.${st[k]}</small>`; t.classList.toggle('on', view === k); });
+    KINDS.forEach(k => { const t = $('tab_' + k); t.innerHTML = `${LV[k].icon} ${LV[k].name}<small>Sz.${st[k]}${k === 'melt' && scenes.melt ? ' · ' + Math.round(scenes.melt.temp) + '°' : ''}</small>`; t.classList.toggle('on', view === k); });
     $('tab_orders').innerHTML = `📋 MEGBÍZÁS<small>${st.orders.length} aktív</small>`; $('tab_orders').classList.toggle('on', view === 'orders');
     const om = view === 'orders'; $('orders').hidden = !om; $('ctlMachine').hidden = om; $('ctlOrders').hidden = !om;
     if (om) renderOrders();
@@ -165,6 +172,8 @@ function start() {
         : `<b>⬆ ${LV[cur].name} Sz.${st[cur]} → ${st[cur] + 1}</b> · ${fmt(c)}<br><small>${effText(cur)}</small>`;
       b.classList.toggle('off', capped || st.money < c);
       refreshPick();
+      $('ctlPress').hidden = view !== 'press'; $('ctlMelt').hidden = view !== 'melt';
+      $('btnAuto').hidden = st.press < 5; $('btnAuto').innerHTML = st.auto ? '⚙ AUTO<small>BE</small>' : '⚙ AUTO<small>KI</small>';
     }
     updateGoal();
     KINDS.forEach(k => { const sc = scenes[k]; if (sc && lw && sc.lv !== st[k] && sc.L.ft) { sc.lv = st[k]; paintBg(sc); } }); // a tábla szintje újrarajzolódik
@@ -172,6 +181,7 @@ function start() {
   function setView(v) {
     if (v === view) return;
     if (view !== 'orders') scenes[cur].endDrag();
+    scenes.press.cmd = false; $('btnPress').classList.remove('on');
     view = v; if (v !== 'orders') { cur = v; st.card = v; } save(); ui(); audioInit();
   }
   TABS.forEach(k => { $('tab_' + k).onclick = () => setView(k); });
@@ -245,6 +255,17 @@ function start() {
   mk.addEventListener('contextmenu', e => e.preventDefault());
   mk.addEventListener('click', e => { if (e.detail === 0) make(false); }); // billentyűzetről (Enter/Szóköz)
   document.addEventListener('visibilitychange', stopHold);
+
+  // Prés-kapcsoló: nyomd = egy ütés, tartsd = folyamatos; (Sz.5-től AUTO mód is van)
+  const pb = $('btnPress');
+  pb.addEventListener('pointerdown', e => { e.preventDefault(); try { pb.setPointerCapture(e.pointerId); } catch (x) {} audioInit(); const sc = scenes.press; sc.cmd = true; sc.queued = true; pb.classList.add('on'); beep(150, .08, 'square', .06); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => pb.addEventListener(t, () => { scenes.press.cmd = false; pb.classList.remove('on'); }));
+  pb.addEventListener('contextmenu', e => e.preventDefault());
+  $('btnAuto').onclick = () => { st.auto = !st.auto; save(); ui(); };
+  // Olvasztó-hőfok: csúszka (forgatógomb) + KI gomb
+  const ts = $('tempSet'); ts.value = st.tset;
+  ts.addEventListener('input', () => { st.tset = +ts.value; save(); });
+  $('tempOff').onclick = () => { st.tset = 0; ts.value = 0; save(); };
 
   // Teljes képernyő (Android/asztali böngésző; iPhone-on a rendszer nem engedi, ott a telepített alkalmazás tölti ki a kijelzőt)
   function goFull() {
@@ -358,10 +379,18 @@ function start() {
   function makeScene(kind) {
     const engine = Engine.create({ positionIterations: 8, velocityIterations: 6 }), world = engine.world;
     const sc = { kind, engine, world, items: [], dead: [], sparks: [], pops: [], statics: [], belts: [], rotors: [], plate: null, L: {}, shake: 0, hover: null, drag: null,
-      bg: document.createElement('canvas'), snd: { press: 0, dir: 1, hit: 0, meltN: 0, load: 0 }, gP: 0, lv: 0 };
+      bg: document.createElement('canvas'), snd: { press: 0, dir: 1, hit: 0, meltN: 0, load: 0 }, gP: 0, lv: 0, temp: 0, cmd: false, queued: false, gAng: 0 };
     const { items, dead, sparks, pops, statics, belts, rotors, L, snd } = sc;
     const isCur = () => cur === kind;
     const antiGrav = b => { b.force.y -= b.mass * engine.gravity.y * engine.gravity.scale; };
+    sc.quality = () => sc.temp < 600 ? .7 : Math.min(1.15, .7 + .3 * (sc.temp - 600) / 900); // hidegen rosszabb minőségű fém
+    function heat() { // az olvasztó hőmérséklete lassan követi a beállított értéket; a fűtés tüzelőanyagot fogyaszt
+      const dt = 1 / 60, noFuel = st.money <= 0, want = noFuel ? 0 : st.tset, rate = want > sc.temp ? 60 + 12 * st.melt : 45;
+      sc.temp += Math.max(-rate * dt, Math.min(rate * dt, want - sc.temp));
+      if (sc.temp > 150 && want > 0) st.money = Math.max(0, st.money - fuelPerSec(sc.temp) * dt);
+      if (noFuel && st.tset > 0 && !sc.noFuel) { sc.noFuel = true; toast('⛽ Elfogyott a tüzelőanyag – a kemence kihűl!'); } else if (!noFuel) sc.noFuel = false;
+      sc.uiT = (sc.uiT || 0) + dt; if (sc.uiT > .3) { sc.uiT = 0; save(); ui(); }
+    }
 
     // részecskék (csak az aktív kártyán keletkeznek)
     const P = (x, y, vx, vy, t, c, o) => { if (!isCur() || sparks.length > 360) return; sparks.push(Object.assign({ x, y, vx, vy, t, t0: t, c, sz: 1, g: 600, k: 's', grow: 0 }, o)); };
@@ -473,7 +502,7 @@ function start() {
       if (!it.alive) return;
       it.alive = false; Composite.remove(world, it); items.splice(items.indexOf(it), 1);
       if (sc.drag && sc.drag.b === it) sc.endDrag();
-      const pay = silent ? 0 : it.value * multOf(how);
+      const pay = silent ? 0 : it.value * multOf(how) * (kind === 'melt' && how === 'melt' ? sc.quality() : 1);
       if (pay >= 1) { st.money += pay; save(); ui(); if (!silent && isCur()) pops.push({ x: it.position.x, y: it.position.y, t: 1, txt: '+' + Math.floor(pay).toLocaleString('hu-HU'), c: how === 'melt' ? '#ffb347' : '#ffe27a' }); }
       if (!silent) track(kind, it, pay);
       if (silent) return;
@@ -501,18 +530,19 @@ function start() {
       if (kind === 'press' && sc.plate) {
         const p = sc.plate, s = p.pp, vmax = Math.min(16 * S, (3 + .45 * st.press) * S), y = p.position.y;
         p.py = y; let vy = 0;
-        if (s.ph === 'wait') { s.t -= 1 / 60; if (s.t <= 0) { s.ph = 'down'; s.v = 0; } }
+        if (s.ph === 'wait') { s.t -= 1 / 60; if (s.t <= 0 && (sc.cmd || sc.queued || (st.auto && st.press >= 5))) { s.ph = 'down'; s.v = 0; sc.queued = false; } } // csak kapcsolóra (vagy AUTO módban) indul
         else if (s.ph === 'down') {
           s.v = Math.min(vmax, s.v + vmax * .09 + .15); vy = s.v;
           if (y + vy >= p.botY) { vy = p.botY - y; s.ph = 'hold'; s.t = .35; slam(vmax); }
         }
         else if (s.ph === 'hold') { s.t -= 1 / 60; if (s.t <= 0) { s.ph = 'up'; s.v = 0; } }
-        else { s.v = Math.min(vmax * .7, s.v + vmax * .05 + .1); vy = -s.v; if (y + vy <= p.restY) { vy = p.restY - y; s.ph = 'wait'; s.t = .5; } }
+        else { s.v = Math.min(vmax * .7, s.v + vmax * .05 + .1); vy = -s.v; if (y + vy <= p.restY) { vy = p.restY - y; s.ph = 'wait'; s.t = .15; } }
         snd.press = s.ph === 'down' || s.ph === 'up' ? s.v / vmax : s.ph === 'hold' ? .3 : 0; snd.dir = s.ph === 'up' ? -1 : 1;
         Body.setVelocity(p, { x: 0, y: vy }); Body.setAngle(p, 0); Body.setAngularVelocity(p, 0);
         Body.setPosition(p, { x: W / 2, y: p.position.y }); antiGrav(p);
       }
       rotors.forEach(r => { r.pa = r.angle; Body.setPosition(r, r.home); Body.setVelocity(r, { x: 0, y: 0 }); Body.setAngularVelocity(r, r.dir * bladeSpeed()); antiGrav(r); });
+      if (kind === 'melt') heat();
     }
     function slam(vmax) {
       sc.shake = Math.max(sc.shake, Math.min(7, 2 + vmax * .35));
@@ -549,9 +579,9 @@ function start() {
       if (kind === 'melt') {
         snd.meltN = 0;
         for (const it of items) {
-          it.melting = it.position.y > L.lavaTop;
+          const f = tempFactor(sc.temp); it.melting = it.position.y > L.lavaTop && f > 0;
           if (it.melting) {
-            snd.meltN++; hurt(it, it.maxHp * meltRate() / 60 + .05, 'melt'); it.heat = 1 - Math.max(0, it.hp) / it.maxHp;
+            snd.meltN++; hurt(it, it.maxHp * meltRate() * f / 60 + .05, 'melt'); it.heat = 1 - Math.max(0, it.hp) / it.maxHp;
             if (Math.random() < .03) burst(it.position.x, it.position.y, 1, '#ff7a2a');
             if (Math.random() < .05) puff(it.position.x, it.bounds.min.y, 1, '#6a6a80', 1.2);
           }
@@ -640,7 +670,6 @@ function start() {
     // vezérlőpult
     R(bx + 3 * U, hy + 6 * U, bw - 6 * U, 26 * U, '#262633'); R(bx + 3 * U, hy + 6 * U, bw - 6 * U, U, '#6a6a80');
     R(bx + 5 * U, hy + 8 * U, bw - 10 * U, 11 * U, '#0b1a0b'); Object.assign(L, { scrX: bx + bw / 2, scrY: hy + 13.5 * U });
-    ['#ff3030', '#ffe03c', '#3cff3c'].forEach((c, i) => R(bx + 6 * U + i * 6 * U, hy + 23 * U, 4 * U, 4 * U, c));
     sign(bx + bw * .5, hy + 38 * U);
     // adagoló kapu (itt érkeznek a tárgyak)
     const gx0 = L.spawnX - (L.maxW / 2 + 3 * U), gx1 = L.spawnX + (L.maxW / 2 + 3 * U);
@@ -660,7 +689,7 @@ function start() {
     }
     hazard(cw, L.topY - 3 * U, W - 2 * cw, 3 * U);
     for (let x = L.xTL + 10 * U; x < L.xTR - 10 * U; x += 8 * U) { R(x, L.topY, 3 * U, 2 * U, '#e8e8f0'); R(x + U, L.topY + 2 * U, U, 3 * U, '#e8e8f0'); } // fogsor
-    skull(cw + 6 * U, L.botY - 22 * U, '#3a0a0a', '#e8e0d0'); sign(W - cw - 14 * U, L.botY - 26 * U);
+    Object.assign(L, { skX: cw + 6 * U, skY: L.botY - 22 * U, sgX: W - cw - 14 * U, sgY: L.botY - 26 * U });
     // oldalsó gépek a rotorok mellett: motor (bal), hajtómű (jobb)
     const lAv = W * .32 - L.r - cw, rAv = W - cw - (W * .68 + L.r); L.motor = null; L.gb = null;
     if (lAv > 14 * U) { const mx0 = cw + 2 * U, mw = lAv - 4 * U, my0 = L.cy - 9 * U; R(mx0, my0, mw, 18 * U, '#3a3a4e'); R(mx0, my0, mw, U, '#6a6a80');
@@ -682,14 +711,49 @@ function start() {
     R(cw, hy, W - 2 * cw, 4 * U, '#4a4a5e'); hazard(cw, hy + 4 * U, W - 2 * cw, 2 * U); // elszívó-búra
     R(cw, hy + 8 * U, W - 2 * cw, 2 * U, '#6a6a80'); R(cw, hy + 8 * U, W - 2 * cw, U, '#a4a4bc'); // daru-sín
     steel(cw + 6 * U, L.beltY + L.bh, 4 * U, ft - L.beltY - L.bh); steel(L.beltEnd - 8 * U, L.beltY + L.bh, 4 * U, ft - L.beltY - L.bh);
-    skull(cw + 12 * U, L.beltY + L.bh + 14 * U, '#3a0a0a', '#e8e0d0'); sign(W - cw - 12 * U, hy + 20 * U);
+    skull(cw + 12 * U, L.beltY + L.bh + 14 * U, '#3a0a0a', '#e8e0d0'); sign(W - cw - 20 * U, hy + 38 * U);
     pipeV(W - cw - 6 * U, hy + 6 * U, L.lavaTop - 14 * U, 2); pipeH(W - cw - 24 * U, W - cw - 4 * U, L.lavaTop - 14 * U, 2);
-    R(W - cw - 26 * U, hy + 40 * U, 10 * U, 10 * U, '#e8e0f5'); R(W - cw - 26 * U, hy + 40 * U, 10 * U, U, '#0a0810'); R(W - cw - 26 * U, hy + 49 * U, 10 * U, U, '#0a0810'); R(W - cw - 22 * U, hy + 42 * U, 2 * U, 4 * U, '#d02020'); // mérő
+    L.disp = { x: W - cw - 34 * U, y: hy + 14 * U, w: 28 * U, h: 16 * U };
+    R(L.disp.x - U, L.disp.y - U, L.disp.w + 2 * U, L.disp.h + 2 * U, '#6a6a80'); R(L.disp.x, L.disp.y, L.disp.w, L.disp.h, '#0b1a0b');
   }
 
   // =====================================================================================
   //  DINAMIKUS RAJZ (kártyánként: háttérrész, előtér)
   // =====================================================================================
+  const gearCache = new Map();
+  function gearSpr(r, n, col, rim) { // pixeles fogaskerék-sprite (fogak, ablakok, agy)
+    const key = [Math.round(r / U), n, col].join('|'); if (gearCache.has(key)) return gearCache.get(key);
+    const R0 = Math.max(4, Math.round(r / U)), th = Math.max(2, Math.round(R0 * .24)), size = 2 * (R0 + th) + 4, c0 = size / 2;
+    const g = document.createElement('canvas'); g.width = g.height = size; const x = g.getContext('2d');
+    for (let yy = 0; yy < size; yy++) for (let xx = 0; xx < size; xx++) {
+      const dx = xx + .5 - c0, dy = yy + .5 - c0, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+      if (d > R0 + (Math.cos(n * a) > .1 ? th : 0) || d < R0 * .28 || (d > R0 * .42 && d < R0 * .8 && Math.cos(3 * a) > .5)) continue;
+      x.fillStyle = d > R0 * .82 ? rim : (dx + dy < -R0 * .5 ? shade(col, .25) : col); x.fillRect(xx, yy, 1, 1);
+    }
+    finishSprite(g); gearCache.set(key, g); return g;
+  }
+  function drawGear(sp, x, y, a) { ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.drawImage(sp, -sp.width * U / 2, -sp.height * U / 2, sp.width * U, sp.height * U); ctx.restore(); }
+  function drawGearWall(sc, dt) { // a daráló belsejét egymásba kapcsolódó fogaskerekek százai töltik ki
+    const L = sc.L, ft = L.ft, cw = L.cw; sc.gAng += dt * bladeSpeed() * 60 * (.25 + .75 * sc.snd.load);
+    const rg = Math.max(7 * U, W * .045), n = 12, th = Math.max(2 * U, rg * .24), d = 2 * rg + th * .5;
+    const sA = gearSpr(rg, n, '#3a3a52', '#555575'), sB = gearSpr(rg, n, '#4a403c', '#6a5a52');
+    ctx.save(); ctx.beginPath();
+    ctx.moveTo(L.xTL + 2 * U, L.topY); ctx.lineTo(L.xTR - 2 * U, L.topY); ctx.lineTo(L.xBR - 2 * U, L.botY); ctx.lineTo(L.xBL + 2 * U, L.botY); ctx.closePath();          // tölcsér belseje
+    ctx.moveTo(cw, L.topY); ctx.lineTo(L.xTL - 2 * U, L.topY); ctx.lineTo(L.xBL - 2 * U, L.botY); ctx.lineTo(cw, L.botY); ctx.closePath();                          // bal lemez
+    ctx.moveTo(W - cw, L.topY); ctx.lineTo(L.xTR + 2 * U, L.topY); ctx.lineTo(L.xBR + 2 * U, L.botY); ctx.lineTo(W - cw, L.botY); ctx.closePath();                  // jobb lemez
+    ctx.rect(cw, L.botY, W - 2 * cw, ft - L.bh - L.botY);                                                                                                               // alsó kamra
+    ctx.clip();
+    let j = 0;
+    for (let y = L.topY + rg * .5; y < ft - L.bh + rg; y += d, j++) {
+      let i = 0;
+      for (let x = cw + rg; x < W - cw + rg; x += d, i++) { const par = (i + j) & 1; drawGear(par ? sB : sA, x, y, (par ? -1 : 1) * sc.gAng + (par ? Math.PI / n : 0)); }
+    }
+    const big = gearSpr(rg * 2.6, 16, '#46465e', '#66668a'), mid = gearSpr(rg * 1.7, 14, '#523a3a', '#7a5a5a'), cy2 = L.botY + (ft - L.bh - L.botY) * .5;
+    drawGear(big, W * .5, L.topY + (L.botY - L.topY) * .2, sc.gAng * .45); drawGear(big, W * .2, cy2, -sc.gAng * .45); drawGear(big, W * .8, cy2, -sc.gAng * .45);
+    drawGear(mid, W * .33, L.topY + (L.botY - L.topY) * .62, -sc.gAng * .7); drawGear(mid, W * .67, L.topY + (L.botY - L.topY) * .62, sc.gAng * .7);
+    ctx.restore();
+    skull(L.skX, L.skY, '#3a0a0a', '#e8e0d0'); sign(L.sgX, L.sgY);
+  }
   const PCOL = ['#6a6f88', '#8a6a6a', '#a04a4a', '#c03030'], RCOL = ['#8a90a8', '#a89080', '#c07050', '#e05030'];
   function drawBelts(sc, now) {
     const bh = sc.L.bh;
@@ -746,6 +810,9 @@ function start() {
         ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + Math.cos(na) * gr * .8, gy + Math.sin(na) * gr * .8); ctx.strokeStyle = '#d02020'; ctx.lineWidth = U * .8; ctx.stroke();
         // gépterem: kijelző + ventilátor
         label(`${Math.round(sc.gP * 250)} BAR`, L.scrX, L.scrY, Math.min(5 * U, (L.bw - 12 * U) / 6), '#3cff3c');
+        { const on = sc.cmd || sc.queued || p.pp.ph !== 'wait' || (st.auto && st.press >= 5), bxx = L.bx + L.bw / 2, byy = L.hy + 26 * U;
+          R(bxx - 6 * U, byy - 5 * U, 12 * U, 10 * U, '#0e0b14'); ctx.beginPath(); ctx.arc(bxx, byy, 4 * U, 0, 7); ctx.fillStyle = on ? '#ff5050' : '#7a1a1a'; ctx.fill(); ctx.lineWidth = U; ctx.strokeStyle = '#0a0810'; ctx.stroke();
+          if (on) { ctx.fillStyle = '#ff303044'; ctx.beginPath(); ctx.arc(bxx, byy, 7 * U, 0, 7); ctx.fill(); } }
         ctx.save(); ctx.translate(L.fanX, L.fanY); ctx.rotate(now / 60 * (.3 + s.press * 2));
         ctx.fillStyle = '#c8cce0'; for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.fillRect(0, -U, 5 * U, 2 * U); } ctx.restore();
       },
@@ -761,7 +828,7 @@ function start() {
     },
     grind: {
       back(sc, dt, al, now) {
-        const L = sc.L, s = sc.snd; drawBelts(sc, now);
+        const L = sc.L, s = sc.snd; drawBelts(sc, now); drawGearWall(sc, dt);
         const cx = W / 2, ey = L.topY + (L.botY - L.topY) * .45, glow = .5 + .5 * Math.sin(now / 300) + s.load;
         for (const ex of [cx - W * .12, cx + W * .12]) { // világító szemek
           ctx.fillStyle = `rgba(255,40,40,${Math.min(.5, .12 + .15 * glow)})`; ctx.fillRect(q(ex - 6 * U), q(ey - 4 * U), 12 * U, 8 * U);
@@ -777,38 +844,40 @@ function start() {
     },
     melt: {
       back(sc, dt, al, now) {
-        const L = sc.L, ft = L.ft; drawBelts(sc, now);
-        // kemence-száj izzása
-        const g = ctx.createLinearGradient(0, L.ay, 0, L.ay - L.ar * 1.2); g.addColorStop(0, 'rgba(255,100,20,.55)'); g.addColorStop(1, 'rgba(255,60,10,0)');
+        const L = sc.L, ft = L.ft, T = sc.temp, tf = c01((T - 300) / 1700); drawBelts(sc, now);
+        const g = ctx.createLinearGradient(0, L.ay, 0, L.ay - L.ar * 1.2); g.addColorStop(0, `rgba(255,100,20,${(.55 * tf).toFixed(2)})`); g.addColorStop(1, 'rgba(255,60,10,0)');
         ctx.fillStyle = g; ctx.fillRect(q(L.ax - L.ar), q(L.ay - L.ar * 1.2), q(L.ar * 2), q(L.ar * 1.2));
-        // daru: csille, lánc, merítőkanál
-        const tx = W * .5 + Math.sin(now / 3200) * W * .28, rail = 13 * U + 10 * U, len = H * .1 + Math.sin(now / 1500) * H * .03;
+        const cl = lavaCols(tf);
+        const tx = W * .5 + Math.sin(now / 3200) * W * .28, rail = 13 * U + 10 * U, len = H * .1 + Math.sin(now / 1500) * H * .03; // daru
         R(tx - 6 * U, rail - 2 * U, 12 * U, 4 * U, '#4a4a5e'); R(tx - 6 * U, rail - 2 * U, 12 * U, U, '#a4a4bc');
         for (let y = rail + 2 * U; y < rail + len; y += 2 * U) R(tx, y, U, U, (y / U) % 4 ? '#8a8aa0' : '#4a4a5e');
-        R(tx - 6 * U, rail + len, 12 * U, 6 * U, '#4a4a5e'); R(tx - 6 * U, rail + len, 12 * U, U, '#8a8aa4'); R(tx - 5 * U, rail + len + U, 10 * U, U, '#ff7a1a');
-        // láva
-        for (let x = L.cw; x < W - L.cw; x += 2 * U) {
-          const t = L.lavaTop + Math.sin(now / 400 + x * .08) * U * 1.4, h = ft - t;
-          R(x, t, 2 * U, h, '#ff4a1a'); R(x, t + h * .55, 2 * U, h, '#c02a10'); R(x, t, 2 * U, 1.2 * U, '#ffd23f'); R(x, t + 1.2 * U, 2 * U, U, '#ff9a1f');
+        R(tx - 6 * U, rail + len, 12 * U, 6 * U, '#4a4a5e'); R(tx - 6 * U, rail + len, 12 * U, U, '#8a8aa4'); R(tx - 5 * U, rail + len + U, 10 * U, U, cl[0]);
+        for (let x = L.cw; x < W - L.cw; x += 2 * U) { // láva: színe a hőmérséklettől függ, hidegen kihűlt kéreg
+          const t = L.lavaTop + Math.sin(now / 400 + x * .08) * U * 1.4 * (.3 + tf), h = ft - t;
+          R(x, t, 2 * U, h, cl[2]); R(x, t + h * .55, 2 * U, h, cl[3]); R(x, t, 2 * U, 1.2 * U, cl[0]); R(x, t + 1.2 * U, 2 * U, U, cl[1]);
+          if (T < 700 && hs(x, 7) < .6) R(x, t, 2 * U, 2 * U, '#241818');
         }
-        if (Math.random() < .35) sc.P(rnd(L.cw, W - L.cw), L.lavaTop, rnd(-10, 10), -rnd(30, 90), rnd(.6, 1.2), '#ffb347', { g: 40 });
-        if (Math.random() < .12) sc.puff(rnd(L.cw, W - L.cw), L.lavaTop - 4, 1, '#7a7a90', 1.8);
+        if (Math.random() < .35 * tf) sc.P(rnd(L.cw, W - L.cw), L.lavaTop, rnd(-10, 10), -rnd(30, 90), rnd(.6, 1.2), '#ffb347', { g: 40 });
+        if (Math.random() < .12 * tf) sc.puff(rnd(L.cw, W - L.cw), L.lavaTop - 4, 1, '#7a7a90', 1.8);
+        const d = L.disp; // digitális hőmérséklet-kijelző
+        label(`${Math.round(T)}°C`, d.x + d.w / 2, d.y + 5.5 * U, Math.min(7 * U, d.w / 5), T > 1800 ? '#ff5050' : '#3cff3c');
+        label(st.tset ? '→' + st.tset + '°' : 'KI!', d.x + d.w / 2, d.y + 12 * U, Math.min(5 * U, d.w / 7), st.tset && T < st.tset - 30 ? '#ffe03c' : '#9aff9a');
       },
       front(sc, dt, al, now) {
-        const L = sc.L, ft = L.ft;
-        ctx.fillStyle = 'rgba(255,80,20,.35)'; ctx.fillRect(q(L.cw), q(L.lavaTop + 2 * U), q(W - 2 * L.cw), ft - L.lavaTop - 2 * U);
-        // lángszórók a falakból
-        const jets = [[L.cw, 1, ft - H * .30, 0], [W - L.cw, -1, ft - H * .22, 1.4], [L.cw, 1, ft - H * .16, 2.6], [W - L.cw, -1, ft - H * .36, 3.3]];
-        const maxLen = W * (.2 + .015 * Math.min(10, st.melt));
-        for (const [x, dir, y, ph0] of jets) {
-          const ph = ((now / 1000) + ph0) % 4.5; if (ph > 1.3 || y < L.beltY + 20 * U && x < L.beltEnd) continue;
-          const len = maxLen * Math.sin(ph / 1.3 * Math.PI);
-          for (let i = 0; i < len; i += U) { const f = i / maxLen, hgt = (4 * (1 - f * .7) + Math.random() * 2) * U; R(x + dir * i, y - hgt / 2, U, hgt, f < .25 ? '#ffe27a' : f < .55 ? '#ff9a1f' : '#e03a14'); }
-          if (Math.random() < .3) sc.P(x + dir * len, y, dir * rnd(20, 60), -rnd(20, 60), rnd(.3, .6), '#ffb347', { g: 40 });
+        const L = sc.L, ft = L.ft, T = sc.temp, tf = c01((T - 300) / 1700);
+        ctx.fillStyle = `rgba(255,80,20,${(.1 + .3 * tf).toFixed(2)})`; ctx.fillRect(q(L.cw), q(L.lavaTop + 2 * U), q(W - 2 * L.cw), ft - L.lavaTop - 2 * U);
+        if (tf > .3) { // lángszórók a falakból – a hőfokkal erősödnek
+          const jets = [[L.cw, 1, ft - H * .30, 0], [W - L.cw, -1, ft - H * .22, 1.4], [L.cw, 1, ft - H * .16, 2.6], [W - L.cw, -1, ft - H * .36, 3.3]];
+          const maxLen = W * (.2 + .015 * Math.min(10, st.melt)) * tf;
+          for (const [x, dir, y, ph0] of jets) {
+            const ph = ((now / 1000) + ph0) % 4.5; if (ph > 1.3 || (y < L.beltY + 20 * U && x < L.beltEnd)) continue;
+            const len = maxLen * Math.sin(ph / 1.3 * Math.PI);
+            for (let i = 0; i < len; i += U) { const f = i / maxLen, hgt = (4 * (1 - f * .7) + Math.random() * 2) * U; R(x + dir * i, y - hgt / 2, U, hgt, f < .25 ? '#ffe27a' : f < .55 ? '#ff9a1f' : '#e03a14'); }
+            if (Math.random() < .3) sc.P(x + dir * len, y, dir * rnd(20, 60), -rnd(20, 60), rnd(.3, .6), '#ffb347', { g: 40 });
+          }
         }
-        // izzás (additív)
         ctx.globalCompositeOperation = 'lighter';
-        const g = ctx.createLinearGradient(0, L.lavaTop, 0, L.lavaTop - H * .3); g.addColorStop(0, 'rgba(255,90,20,.28)'); g.addColorStop(1, 'rgba(255,90,20,0)');
+        const g = ctx.createLinearGradient(0, L.lavaTop, 0, L.lavaTop - H * .3); g.addColorStop(0, `rgba(255,90,20,${(.28 * tf).toFixed(2)})`); g.addColorStop(1, 'rgba(255,90,20,0)');
         ctx.fillStyle = g; ctx.fillRect(0, q(L.lavaTop - H * .3), W, q(H * .3)); ctx.globalCompositeOperation = 'source-over';
       }
     }
@@ -841,7 +910,7 @@ function start() {
       if (s.k === 'd') { const sz = U * (s.sz + (1 - s.t / s.t0) * s.grow); ctx.globalAlpha = Math.min(.6, s.t / s.t0 * .9); R(s.x - sz / 2, s.y - sz / 2, sz, sz, s.c); ctx.globalAlpha = 1; }
       else R(s.x, s.y, U * s.sz, U * s.sz, s.c);
     }
-    const act = sc.kind === 'press' ? sc.plate.pp.ph === 'down' || sc.plate.pp.ph === 'hold' : sc.kind === 'grind' ? sc.snd.load > .3 : sc.snd.meltN > 0;
+    const act = sc.kind === 'press' ? sc.plate.pp.ph === 'down' || sc.plate.pp.ph === 'hold' : sc.kind === 'grind' ? sc.snd.load > .3 : sc.temp > 800;
     beacon(W - L.cw - 8 * U, 6.5 * U, act, '#ff3030', now);
 
     for (const b of items) { // nevek
@@ -888,7 +957,7 @@ function start() {
     KINDS.forEach(k => { if (k !== cur) scenes[k].snd.load += ((scenes[k].snd.hit > 0 ? 1 : 0) - scenes[k].snd.load) * Math.min(1, dt * 6); scenes[k].snd.hit = 0; });
     set(A.motor.g, gk ? .035 + .03 * s.load : 0); A.motor.o.frequency.setTargetAtTime(38 + (bladeSpeed() - .11) * 200 + 14 * s.load, t, .1);
     set(A.grn.g, gk ? .07 * s.load : 0);
-    set(A.melt.g, mk ? .02 + .035 * Math.min(1, s.meltN / 3) : 0);
+    set(A.melt.g, mk ? (.01 + .05 * c01((sc.temp - 200) / 1500)) * (.6 + .4 * Math.min(1, s.meltN / 3)) : 0);
     if (on && mk && s.meltN && Math.random() < .08) noiseBurst(2000 + Math.random() * 3000, .04, .03, 'bandpass');
   }
   function noiseBurst(f, d, v, type) {
@@ -916,10 +985,14 @@ function start() {
   ['pointerup', 'pointercancel'].forEach(t => cv.addEventListener(t, e => scenes[cur].up(e.pointerId)));
   cv.addEventListener('contextmenu', e => e.preventDefault());
 
-  let last = performance.now(), acc = 0;
+  let last = performance.now(), acc = 0, hudTxt = '';
   function frame(t) {
     const dt = Math.min(100, t - last); last = t;
     if (!paused) { acc += dt; let n = 0; while (acc >= 1000 / 60 && n < 4) { KINDS.forEach(k => scenes[k].step()); acc -= 1000 / 60; n++; } if (n === 4) acc = 0; }
+    if (view === 'melt') { // hőmérséklet-kijelző a lábléc-vezérlőn
+      const T = scenes.melt.temp, txt = `🌡 ${Math.round(T)} °C → ${st.tset ? st.tset + ' °C' : 'KI'} · 🔥 ${fuelPerSec(T).toFixed(1).replace('.', ',')} Ft/mp`;
+      if (txt !== hudTxt) { hudTxt = txt; $('tempRead').textContent = txt; }
+    }
     renderScene(scenes[cur], dt / 1000, paused ? 1 : Math.min(1, acc / (1000 / 60)));
     audioTick(dt / 1000); requestAnimationFrame(frame);
   }
