@@ -112,3 +112,7 @@ input[type=range]::-webkit-slider-runnable-track{height:14px;background:linear-g
 input[type=range]::-moz-range-track{height:14px;background:linear-gradient(90deg,#3a2a28,#d83a12 55%,#fff2a0);border:3px solid var(--line)}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:38px;height:38px;margin-top:-14px;background:#ff9f1c;border:3px solid #ffd23f;box-shadow:inset 3px 3px 0 #ffd88a,inset -3px -3px 0 #b86a00;border-radius:0}
 input[type=range]::-moz-range-thumb{width:34px;height:34px;background:#ff9f1c;border:3px solid #ffd23f;border-radius:0}
+
+/* teljes képernyő: a rendszer értesítése átmenetileg ne takarja a gombokat */
+#ctl{transition:padding-bottom .35s}
+body.lift #ctl,body.pad #ctl{padding-bottom:calc(6px + max(env(safe-area-inset-bottom),64px))}

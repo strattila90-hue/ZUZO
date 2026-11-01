@@ -17,7 +17,7 @@ function start() {
 
   // ---------- MENTÉS ----------
   const SAVE = 'zuzo_save_v1';
-  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null, tset: 0, auto: false };
+  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null, tset: 0, auto: false, pad: false };
   try { Object.assign(st, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
   if (!KINDS.includes(st.card)) st.card = 'press';
   if (!st.stats) st.stats = { kills: 0, earned: 0 };
@@ -36,6 +36,7 @@ function start() {
   const tier = k => Math.min(3, Math.floor((st[k] - 1) / 5)); // vizuális fokozat 5 szintenként
   // olvasztó: kézi hőfokszabályzás – a hőmérséklet adja az olvadás sebességét és a fém minőségét, a fűtés pénzbe kerül
   const c01 = v => Math.max(0, Math.min(1, v));
+  const pressV = () => Math.min(10 * S, (2.4 + .3 * st.press) * S); // a prés lemezének max. sebessége (lassú, nehézkes mozgás)
   const tempFactor = T => Math.max(0, Math.min(1.6, (T - 600) / 900));                 // 600 °C alatt nem olvad, 1500 °C = alapsebesség
   const fuelPerSec = T => Math.pow(T / 1000, 2) * .8 * Math.pow(1.22, st.melt - 1);    // tüzelőanyag Ft/mp
   function mixHex(a, b, t) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16), ch = sh => Math.round(((pa >> sh) & 255) + (((pb >> sh) & 255) - ((pa >> sh) & 255)) * t); return `rgb(${ch(16)},${ch(8)},${ch(0)})`; }
@@ -274,6 +275,11 @@ function start() {
       if (f && !document.fullscreenElement && !document.webkitFullscreenElement) { const p = f.call(el, { navigationUI: 'hide' }); if (p && p.catch) p.catch(() => {}); }
     } catch (e) {}
   }
+  const liftBottom = ms => { document.body.classList.add('lift'); setTimeout(() => document.body.classList.remove('lift'), ms); };
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(t => document.addEventListener(t, () => { if (document.fullscreenElement || document.webkitFullscreenElement) liftBottom(7000); }));
+  try { if (window.matchMedia && matchMedia('(display-mode: fullscreen)').matches) liftBottom(7000); } catch (e) {}
+  document.body.classList.toggle('pad', !!st.pad); $('chkPad').checked = !!st.pad;
+  $('chkPad').onchange = e => { st.pad = e.target.checked; document.body.classList.toggle('pad', st.pad); save(); };
   $('btnFull').onclick = () => { if (document.fullscreenElement || document.webkitFullscreenElement) { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {} } else goFull(); };
 
   // ---------- SPRITE-OK: az emojikból pixelart ikon készül ----------
@@ -421,10 +427,10 @@ function start() {
       if (kind === 'press') {
         L.rightWall = W * .75;
         add(Bodies.rectangle(L.rightWall + 100, H / 2, 200, H * 3, { isStatic: true }), '', true);
-        const pw = W * .4, ph = Math.max(20, 28 * S);
-        const plate = Bodies.rectangle(W / 2, H * .3, pw, ph, { density: 5, friction: .9, frictionAir: 0 });
+        const pw = W * .4, ph = Math.max(24, 36 * S);
+        const plate = Bodies.rectangle(W / 2, H * .34, pw, ph, { density: 5, friction: .9, frictionAir: 0 });
         Body.setInertia(plate, Infinity);
-        plate.zk = 'press'; plate.restY = H * .3; plate.botY = L.ft - bh - ph / 2 - 8 * S; plate.pp = { ph: 'wait', t: .4, v: 0 };
+        plate.zk = 'press'; plate.restY = H * .34; plate.botY = L.ft - bh - ph / 2 - 8 * S; plate.pp = { ph: 'wait', t: .4, v: 0 };
         statics.push(plate); Composite.add(world, plate); sc.plate = plate;
         Object.assign(L, { pw, ph, plL: W / 2 - pw / 2, plR: W / 2 + pw / 2, cylW: W * .26 });
         L.cylB = Math.min(plate.restY - ph / 2 - 4 * U, 13 * U + H * .17);
@@ -434,14 +440,17 @@ function start() {
       } else if (kind === 'grind') {
         const r = Math.min(W * .15, H * .14), cy = L.ft - bh - r - 4;
         [[.32, 1], [.68, -1]].forEach(([fx, dir]) => {
-          const cx = W * fx, bars = [0, 1, 2].map(i => Bodies.rectangle(cx, cy, 2 * r, Math.max(8, 9 * S), { angle: i * Math.PI / 3, density: 3 }));
+          const cx = W * fx, bars = [0, 1].map(i => Bodies.rectangle(cx, cy, 2 * r, Math.max(10, 11 * S), { angle: i * Math.PI / 2, density: 3 }));
           const rot = Body.create({ parts: bars, friction: .8, frictionAir: 0 });
           rot.zk = 'blade'; rot.dir = dir; rot.home = { x: cx, y: cy }; rot.r = r;
           statics.push(rot); rotors.push(rot); Composite.add(world, rot);
         });
         Object.assign(L, { r, cy, topY: H * .16, botY: cy - r - H * .06, xTL: cw + 4 * U, xTR: W - cw - 4 * U, xBL: W * .27, xBR: W * .73 });
         wall(L.xTL, L.topY, L.xBL, L.botY, 8); wall(L.xTR, L.topY, L.xBR, L.botY, 8);
-        mkBelt(cw + 4, W / 2, 1); mkBelt(W / 2, W - cw - 4, -1);
+        L.cx0 = W * .16; L.cx1 = W * .84; // a vágókamra oldalfalai
+        add(Bodies.rectangle(L.cx0 - 100, (L.botY + L.ft) / 2, 200, L.ft - L.botY, { isStatic: true }), '', true);
+        add(Bodies.rectangle(L.cx1 + 100, (L.botY + L.ft) / 2, 200, L.ft - L.botY, { isStatic: true }), '', true);
+        mkBelt(L.cx0 + 4, W / 2, 1); mkBelt(W / 2, L.cx1 - 4, -1);
         L.maxW = W * .28; L.maxH = H * .2; L.spawnX = W / 2;
       } else {
         Object.assign(L, { lavaTop: L.ft - H * .2, beltY: H * .28, beltEnd: W * .4 });
@@ -515,12 +524,12 @@ function start() {
       if (!it.alive || it.hp <= 0) return;
       it.hp -= d;
       if (how === 'press') {
-        const t = Math.max(.45, .5 + .5 * Math.max(0, it.hp) / it.maxHp);
+        const t = Math.max(.3, .3 + .7 * Math.max(0, it.hp) / it.maxHp);
         if (it.sy - t > .03) { Body.scale(it, 1, t / it.sy); it.sy = t; }
       }
       if (d > .3 && how !== 'melt') it.flash = .09;
       if (how === 'grind' && Math.random() < .5) burst(it.position.x, it.position.y, 3, '#fff3b0');
-      else if (how === 'press' && Math.random() < .2) puff(it.position.x, it.bounds.max.y, 1, '#8a8aa0');
+      else if (how === 'press') { if (Math.random() < .2) puff(it.position.x, it.bounds.max.y, 1, '#8a8aa0'); if (Math.random() < .35) burst(it.position.x, it.position.y, 2, '#ffe27a'); }
       if (it.hp <= 0) dead.push([it, how]);
     }
 
@@ -528,15 +537,15 @@ function start() {
     function stepTools() {
       for (const b of items) { b.px = b.position.x; b.py = b.position.y; b.pa = b.angle; }
       if (kind === 'press' && sc.plate) {
-        const p = sc.plate, s = p.pp, vmax = Math.min(16 * S, (3 + .45 * st.press) * S), y = p.position.y;
+        const p = sc.plate, s = p.pp, vmax = pressV(), y = p.position.y;
         p.py = y; let vy = 0;
         if (s.ph === 'wait') { s.t -= 1 / 60; if (s.t <= 0 && (sc.cmd || sc.queued || (st.auto && st.press >= 5))) { s.ph = 'down'; s.v = 0; sc.queued = false; } } // csak kapcsolóra (vagy AUTO módban) indul
         else if (s.ph === 'down') {
-          s.v = Math.min(vmax, s.v + vmax * .09 + .15); vy = s.v;
-          if (y + vy >= p.botY) { vy = p.botY - y; s.ph = 'hold'; s.t = .35; slam(vmax); }
+          s.v = Math.min(vmax, s.v + vmax * .035 + .06); vy = s.v;
+          if (y + vy >= p.botY) { vy = p.botY - y; s.ph = 'hold'; s.t = .7; slam(vmax); }
         }
         else if (s.ph === 'hold') { s.t -= 1 / 60; if (s.t <= 0) { s.ph = 'up'; s.v = 0; } }
-        else { s.v = Math.min(vmax * .7, s.v + vmax * .05 + .1); vy = -s.v; if (y + vy <= p.restY) { vy = p.restY - y; s.ph = 'wait'; s.t = .15; } }
+        else { s.v = Math.min(vmax * .8, s.v + vmax * .03 + .05); vy = -s.v; if (y + vy <= p.restY) { vy = p.restY - y; s.ph = 'wait'; s.t = .15; } }
         snd.press = s.ph === 'down' || s.ph === 'up' ? s.v / vmax : s.ph === 'hold' ? .3 : 0; snd.dir = s.ph === 'up' ? -1 : 1;
         Body.setVelocity(p, { x: 0, y: vy }); Body.setAngle(p, 0); Body.setAngularVelocity(p, 0);
         Body.setPosition(p, { x: W / 2, y: p.position.y }); antiGrav(p);
@@ -544,11 +553,14 @@ function start() {
       rotors.forEach(r => { r.pa = r.angle; Body.setPosition(r, r.home); Body.setVelocity(r, { x: 0, y: 0 }); Body.setAngularVelocity(r, r.dir * bladeSpeed()); antiGrav(r); });
       if (kind === 'melt') heat();
     }
-    function slam(vmax) {
-      sc.shake = Math.max(sc.shake, Math.min(7, 2 + vmax * .35));
-      puff(L.plL + 6, L.ft - L.bh, 5, '#8a8aa0'); puff(L.plR - 6, L.ft - L.bh, 5, '#8a8aa0');
-      puff(L.plL + 8, sc.plate.position.y, 3, '#e8ecf5', 1.6); puff(L.plR - 8, sc.plate.position.y, 3, '#e8ecf5', 1.6);
-      if (isCur()) { beep(62, .22, 'sine', .12); noiseBurst(3000, .45, .07, 'highpass'); noiseBurst(220, .28, .12, 'lowpass'); }
+    function slam(vmax) { // becsapódás: rázkódás, villanás, lökéshullám-gyűrűk, szikra- és törmelékeső, por, gőz
+      sc.shake = Math.max(sc.shake, Math.min(9, 3 + st.press * .25)); sc.flash = .28;
+      puff(L.plL + 6, L.ft - L.bh, 6, '#8a8aa0'); puff(L.plR - 6, L.ft - L.bh, 6, '#8a8aa0');
+      puff(L.plL + 8, sc.plate.position.y, 4, '#e8ecf5', 1.8); puff(L.plR - 8, sc.plate.position.y, 4, '#e8ecf5', 1.8);
+      for (let i = 0; i < 16; i++) P(rnd(L.plL, L.plR), L.ft - L.bh - 2, rnd(-260, 260), -rnd(60, 320), rnd(.3, .8), i % 2 ? '#ffd24d' : '#fff3b0');
+      chunks(W / 2, L.ft - L.bh, 6, '#6a6a80');
+      P(W / 2, L.ft - L.bh, 0, 0, .55, '#e8ecf5', { k: 'r', sz: L.pw * .75, g: 0 }); P(W / 2, L.ft - L.bh, 0, 0, .85, '#ffd24d', { k: 'r', sz: L.pw * 1.15, g: 0 });
+      if (isCur()) { beep(55, .3, 'sine', .14); noiseBurst(3000, .5, .08, 'highpass'); noiseBurst(200, .35, .14, 'lowpass'); }
     }
     function carry(it, belt) {
       const sp = 1.1 * S * belt.dir;
@@ -676,27 +688,53 @@ function start() {
     R(gx0, hy, 2 * U, 7 * U, '#4a4a5e'); R(gx1 - 2 * U, hy, 2 * U, 7 * U, '#4a4a5e'); hazard(gx0, hy + 7 * U, gx1 - gx0, 2 * U);
   }
 
-  function paintGrind(sc) {
-    const L = sc.L, ft = L.ft, cw = L.cw, hy = 13 * U;
+  function paintGrind(sc) { // kétnyelű aprítógép (shredder) keresztmetszete
+    const L = sc.L, ft = L.ft, cw = L.cw, hy = 13 * U, bh = L.bh, r = L.r, cy = L.cy, cx0 = L.cx0, cx1 = L.cx1;
+    const HB = ['#cfe6fb', '#7db2e8', '#4f8cd0', '#2f5f9a'], BL = ['#4f8cf0', '#1c58d0', '#0e3590'];
     steel(0, 0, cw, ft); steel(W - cw, 0, cw, ft); steel(0, 0, W, hy); beamRivets();
-    R(cw, hy, W - 2 * cw, ft - hy, '#15121d'); for (let x = cw + 6 * U; x < W - cw - 6 * U; x += 6 * U) R(x, hy + U, U, ft - hy - U, '#1e1a29');
-    for (let y = L.topY; y < L.botY; y += U) { // tölcsér oldalai + a mögötte lévő acéllemezek
-      const t = (y - L.topY) / (L.botY - L.topY), xl = L.xTL + (L.xBL - L.xTL) * t, xr = L.xTR + (L.xBR - L.xTR) * t, row = ((y - L.topY) / U) | 0;
-      R(cw, y, xl - cw - 2 * U, U, '#2a2a38'); R(xr + 2 * U, y, W - cw - xr - 2 * U, U, '#2a2a38');
-      R(xl - 2 * U, y, 4 * U, U, '#4a4a5e'); R(xl - 2 * U, y, U, U, '#25252f'); R(xl + U, y, U, U, '#8a8aa4');
-      R(xr - 2 * U, y, 4 * U, U, '#4a4a5e'); R(xr + U, y, U, U, '#25252f'); R(xr - 2 * U, y, U, U, '#8a8aa4');
-      if (row % 8 === 0) { R(xl + 2 * U, y, 3 * U, U, '#e8e8f0'); R(xl + 2 * U, y + U, 2 * U, U, '#e8e8f0'); R(xr - 4 * U, y, 3 * U, U, '#e8e8f0'); R(xr - 3 * U, y + U, 2 * U, U, '#e8e8f0'); }
+    R(cw, hy, W - 2 * cw, ft - hy, '#1a1b22'); // sötét vágókamra
+    const xlAt = y => L.xTL + (L.xBL - L.xTL) * (y - L.topY) / (L.botY - L.topY), xrAt = y => L.xTR + (L.xBR - L.xTR) * (y - L.topY) / (L.botY - L.topY);
+    for (let y = L.topY; y < L.botY; y += U) { // tölcsér: csavarozott világoskék lemezek, merevítőbordákkal
+      const xl = xlAt(y), xr = xrAt(y), row = ((y - L.topY) / U) | 0;
+      R(cw, y, xl - cw - 2 * U, U, row % 12 === 0 ? HB[3] : HB[2]); R(xr + 2 * U, y, W - cw - xr - 2 * U, U, row % 12 === 0 ? HB[3] : HB[2]);
+      R(xl - 2 * U, y, 4 * U, U, HB[1]); R(xl + U, y, U, U, HB[0]); R(xl - 2 * U, y, U, U, HB[3]);
+      R(xr - 2 * U, y, 4 * U, U, HB[1]); R(xr - 2 * U, y, U, U, HB[0]); R(xr + U, y, U, U, HB[3]);
+      if (row % 7 === 3) { R(xl - U, y, U, U, '#e8f2ff'); R(xr, y, U, U, '#e8f2ff'); }
     }
-    hazard(cw, L.topY - 3 * U, W - 2 * cw, 3 * U);
-    for (let x = L.xTL + 10 * U; x < L.xTR - 10 * U; x += 8 * U) { R(x, L.topY, 3 * U, 2 * U, '#e8e8f0'); R(x + U, L.topY + 2 * U, U, 3 * U, '#e8e8f0'); } // fogsor
-    Object.assign(L, { skX: cw + 6 * U, skY: L.botY - 22 * U, sgX: W - cw - 14 * U, sgY: L.botY - 26 * U });
-    // oldalsó gépek a rotorok mellett: motor (bal), hajtómű (jobb)
-    const lAv = W * .32 - L.r - cw, rAv = W - cw - (W * .68 + L.r); L.motor = null; L.gb = null;
-    if (lAv > 14 * U) { const mx0 = cw + 2 * U, mw = lAv - 4 * U, my0 = L.cy - 9 * U; R(mx0, my0, mw, 18 * U, '#3a3a4e'); R(mx0, my0, mw, U, '#6a6a80');
-      for (let x = mx0 + 3 * U; x < mx0 + mw - 6 * U; x += 3 * U) R(x, my0 + U, U, 16 * U, '#25252f');
-      R(mx0 + mw - 3 * U, my0 + 2 * U, 3 * U, 14 * U, '#6a6a80'); L.motor = { x: mx0 + mw - 6 * U, y: L.cy, r: 6 * U }; }
-    if (rAv > 14 * U) { const gx0 = W - cw - rAv + 2 * U, gw = rAv - 4 * U, gy0 = L.cy - 22 * U; R(gx0, gy0, gw, 44 * U, '#3d3d4f'); R(gx0, gy0, gw, U, '#6a6a80'); R(gx0 + 2 * U, gy0 + 2 * U, gw - 4 * U, 40 * U, '#14111c');
-      L.gb = { x: gx0 + gw / 2, y: gy0 + 12 * U, y2: gy0 + 28 * U, r1: Math.min(10 * U, gw / 2 - 3 * U), r2: Math.min(7 * U, gw / 2 - 4 * U) }; }
+    R(cw, L.topY - 5 * U, W - 2 * cw, 5 * U, HB[1]); R(cw, L.topY - 5 * U, W - 2 * cw, U, HB[0]); R(cw, L.topY - U, W - 2 * cw, U, HB[3]); // felső perem
+    R(L.xTL + 4 * U, L.topY - 4 * U, L.xTR - L.xTL - 8 * U, 2 * U, '#7a4a3a');                                                      // kopásálló lemez
+    for (let x = cw + 3 * U; x < W - cw - 3 * U; x += 6 * U) R(x, L.topY - 4 * U, U, U, '#e8f2ff');
+    for (const [x0, x1] of [[cw, cx0], [cx1, W - cw]]) { // vágókamra oldalfalai + bordák
+      R(x0, L.botY, x1 - x0, ft - L.botY, HB[2]);
+      for (let y = L.botY + 8 * U; y < ft - 6 * U; y += 12 * U) R(x0, y, x1 - x0, U, HB[3]);
+    }
+    R(cx0 - 5 * U, L.botY, 5 * U, ft - L.botY, HB[1]); R(cx0 - 5 * U, L.botY, U, ft - L.botY, HB[0]); R(cx1, L.botY, 5 * U, ft - L.botY, HB[1]); R(cx1 + 4 * U, L.botY, U, ft - L.botY, HB[3]);
+    for (let y = L.botY + 4 * U; y < ft - 4 * U; y += 8 * U) { R(cx0 - 3 * U, y, U, U, '#e8f2ff'); R(cx1 + 2 * U, y, U, U, '#e8f2ff'); }
+    const podH = r * 1.15;
+    for (const side of [-1, 1]) { // kék hidraulikus hajtásfejek (hajtómű) a tengelyek végén
+      const x0 = side < 0 ? cw + 3 * U : cx1 + 7 * U, x1 = side < 0 ? cx0 - 7 * U : W - cw - 3 * U, w = x1 - x0, top = cy - podH / 2;
+      if (w < 6 * U) continue;
+      R(x0, top, w, podH, BL[1]); R(x0, top, w, 2 * U, BL[0]); R(x0, top + podH - 2 * U, w, 2 * U, BL[2]);
+      for (let k = 1; k < 3; k++) R(x0 + k * w / 3, top, U, podH, BL[2]);
+      const fx = side < 0 ? x1 - 3 * U : x0, ex = side < 0 ? x0 - U : x1 - U;   // karima a ház felől, véglap kívül
+      R(fx, top - 2 * U, 3 * U, podH + 4 * U, HB[1]); R(fx, top - 2 * U, 3 * U, U, HB[0]);
+      for (let yy = top; yy < top + podH; yy += 5 * U) R(fx + U, yy, U, U, '#e8f2ff');
+      R(ex, top + podH * .2, U, podH * .6, BL[2]);
+      const px = x0 + w * .35; // könyökcső + piros szelep + tömlő a peremig
+      R(px, top - 9 * U, 3 * U, 9 * U, BL[1]); R(px - U, top - 11 * U, 5 * U, 3 * U, '#e03030'); R(px, top - 12 * U, 3 * U, U, '#ffd0d0'); pipeV(px + U, L.topY, top - 11 * U, 2);
+      const yx = (x0 + x1) / 2 - 2 * U, y0 = cy + podH / 2 + 4 * U, y1 = ft - bh - 3 * U; // sárga munkahenger
+      if (y1 - y0 > 8 * U) { R(yx - U, y1, 6 * U, 3 * U, '#3a3a4e'); R(yx, y0, 4 * U, y1 - y0, '#ffc21a'); R(yx, y0, U, y1 - y0, '#ffe27a'); R(yx, y0, 4 * U, U, '#1a1620'); R(yx + 3 * U, y0, U, y1 - y0, '#b88a10'); }
+    }
+    const roomy = (L.botY - L.topY) > 70 * U; // koponya- és figyelmeztető tábla, fogaskerék-ablakok az oldallemezeken
+    if (roomy) { skull(cw + 6 * U, L.botY - 52 * U, '#3a0a0a', '#e8e0d0'); sign(W - cw - 14 * U, L.botY - 56 * U); }
+    L.gw = [];
+    for (const side of [-1, 1]) {
+      const y = L.botY - 20 * U, xl = xlAt(y), xr = xrAt(y), avail = side < 0 ? xl - 2 * U - cw : W - cw - (xr + 2 * U);
+      if (roomy && avail > 22 * U) {
+        const w = Math.min(36 * U, avail - 6 * U), cxm = side < 0 ? cw + avail / 2 : xr + 2 * U + avail / 2;
+        R(cxm - w / 2 - U, y - 11 * U, w + 2 * U, 22 * U, '#0a0810'); R(cxm - w / 2, y - 10 * U, w, 20 * U, '#101218'); L.gw.push({ x: cxm, y, w });
+      }
+    }
   }
 
   function paintMelt(sc) {
@@ -720,41 +758,16 @@ function start() {
   // =====================================================================================
   //  DINAMIKUS RAJZ (kártyánként: háttérrész, előtér)
   // =====================================================================================
-  const gearCache = new Map();
-  function gearSpr(r, n, col, rim) { // pixeles fogaskerék-sprite (fogak, ablakok, agy)
-    const key = [Math.round(r / U), n, col].join('|'); if (gearCache.has(key)) return gearCache.get(key);
-    const R0 = Math.max(4, Math.round(r / U)), th = Math.max(2, Math.round(R0 * .24)), size = 2 * (R0 + th) + 4, c0 = size / 2;
-    const g = document.createElement('canvas'); g.width = g.height = size; const x = g.getContext('2d');
-    for (let yy = 0; yy < size; yy++) for (let xx = 0; xx < size; xx++) {
-      const dx = xx + .5 - c0, dy = yy + .5 - c0, d = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
-      if (d > R0 + (Math.cos(n * a) > .1 ? th : 0) || d < R0 * .28 || (d > R0 * .42 && d < R0 * .8 && Math.cos(3 * a) > .5)) continue;
-      x.fillStyle = d > R0 * .82 ? rim : (dx + dy < -R0 * .5 ? shade(col, .25) : col); x.fillRect(xx, yy, 1, 1);
+  function drawGrindParts(sc, dt) { // az oldalablakokban néhány fogaskerék forog
+    const L = sc.L; sc.gAng += dt * bladeSpeed() * 60 * (.25 + .75 * sc.snd.load);
+    for (const w of L.gw || []) {
+      const r1 = Math.min(w.w * .27, 9 * U), r2 = r1 * .7, a = sc.gAng, hs2 = (r1 + r2) / 2;
+      ctx.save(); ctx.beginPath(); ctx.rect(w.x - w.w / 2, w.y - 10 * U, w.w, 20 * U); ctx.clip();
+      gear(w.x - hs2, w.y, r1, 10, a, '#8a90a8', .3); gear(w.x + hs2, w.y, r2, 8, -a * r1 / r2 + Math.PI / 8, '#a89080', .3);
+      ctx.restore();
     }
-    finishSprite(g); gearCache.set(key, g); return g;
   }
-  function drawGear(sp, x, y, a) { ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.drawImage(sp, -sp.width * U / 2, -sp.height * U / 2, sp.width * U, sp.height * U); ctx.restore(); }
-  function drawGearWall(sc, dt) { // a daráló belsejét egymásba kapcsolódó fogaskerekek százai töltik ki
-    const L = sc.L, ft = L.ft, cw = L.cw; sc.gAng += dt * bladeSpeed() * 60 * (.25 + .75 * sc.snd.load);
-    const rg = Math.max(7 * U, W * .045), n = 12, th = Math.max(2 * U, rg * .24), d = 2 * rg + th * .5;
-    const sA = gearSpr(rg, n, '#3a3a52', '#555575'), sB = gearSpr(rg, n, '#4a403c', '#6a5a52');
-    ctx.save(); ctx.beginPath();
-    ctx.moveTo(L.xTL + 2 * U, L.topY); ctx.lineTo(L.xTR - 2 * U, L.topY); ctx.lineTo(L.xBR - 2 * U, L.botY); ctx.lineTo(L.xBL + 2 * U, L.botY); ctx.closePath();          // tölcsér belseje
-    ctx.moveTo(cw, L.topY); ctx.lineTo(L.xTL - 2 * U, L.topY); ctx.lineTo(L.xBL - 2 * U, L.botY); ctx.lineTo(cw, L.botY); ctx.closePath();                          // bal lemez
-    ctx.moveTo(W - cw, L.topY); ctx.lineTo(L.xTR + 2 * U, L.topY); ctx.lineTo(L.xBR + 2 * U, L.botY); ctx.lineTo(W - cw, L.botY); ctx.closePath();                  // jobb lemez
-    ctx.rect(cw, L.botY, W - 2 * cw, ft - L.bh - L.botY);                                                                                                               // alsó kamra
-    ctx.clip();
-    let j = 0;
-    for (let y = L.topY + rg * .5; y < ft - L.bh + rg; y += d, j++) {
-      let i = 0;
-      for (let x = cw + rg; x < W - cw + rg; x += d, i++) { const par = (i + j) & 1; drawGear(par ? sB : sA, x, y, (par ? -1 : 1) * sc.gAng + (par ? Math.PI / n : 0)); }
-    }
-    const big = gearSpr(rg * 2.6, 16, '#46465e', '#66668a'), mid = gearSpr(rg * 1.7, 14, '#523a3a', '#7a5a5a'), cy2 = L.botY + (ft - L.bh - L.botY) * .5;
-    drawGear(big, W * .5, L.topY + (L.botY - L.topY) * .2, sc.gAng * .45); drawGear(big, W * .2, cy2, -sc.gAng * .45); drawGear(big, W * .8, cy2, -sc.gAng * .45);
-    drawGear(mid, W * .33, L.topY + (L.botY - L.topY) * .62, -sc.gAng * .7); drawGear(mid, W * .67, L.topY + (L.botY - L.topY) * .62, sc.gAng * .7);
-    ctx.restore();
-    skull(L.skX, L.skY, '#3a0a0a', '#e8e0d0'); sign(L.sgX, L.sgY);
-  }
-  const PCOL = ['#6a6f88', '#8a6a6a', '#a04a4a', '#c03030'], RCOL = ['#8a90a8', '#a89080', '#c07050', '#e05030'];
+  const PCOL = ['#6a6f88', '#8a6a6a', '#a04a4a', '#c03030'], RCOL = ['#8a8070', '#a89078', '#c07a50', '#e05030'];
   function drawBelts(sc, now) {
     const bh = sc.L.bh;
     for (const b of sc.belts) {
@@ -768,19 +781,23 @@ function start() {
       }
     }
   }
-  function drawRotor(r, ang, alpha) {
-    const bt = Math.max(8, 9 * S);
+  function drawRotor(r, ang, alpha) { // négykarú, kampós vágótárcsa (a kampók a forgás irányába hajlanak)
+    const bt = Math.max(10, 11 * S), R0 = r.r, sy = r.dir, y = v => v * sy;
     ctx.save(); ctx.globalAlpha = alpha; ctx.translate(r.home.x, r.home.y); ctx.rotate(ang);
-    for (let i = 0; i < 3; i++) {
-      ctx.save(); ctx.rotate(i * Math.PI / 3);
-      ctx.fillStyle = '#0a0810'; ctx.fillRect(-r.r - U, -bt / 2 - 2 * U, 2 * r.r + 2 * U, bt + 4 * U);
-      ctx.fillStyle = RCOL[tier('grind')]; ctx.fillRect(-r.r, -bt / 2, 2 * r.r, bt);
-      ctx.fillStyle = '#c4c9de'; ctx.fillRect(-r.r, -bt / 2, 2 * r.r, U);
-      ctx.fillStyle = '#e8ecf5';
-      for (const s of [-1, 1]) for (const k of [.35, .6, .85, 1]) { const tx = s * r.r * k - 1.5 * U; ctx.fillRect(tx, -bt / 2 - 2.5 * U, 3 * U, 2.5 * U); ctx.fillRect(tx, bt / 2, 3 * U, 2.5 * U); }
+    for (let i = 0; i < 4; i++) {
+      ctx.save(); ctx.rotate(i * Math.PI / 2); ctx.beginPath();
+      ctx.moveTo(R0 * .1, y(-bt * .6)); ctx.lineTo(R0 * .62, y(-bt * .55));
+      ctx.quadraticCurveTo(R0 * 1.05, y(-bt * .5), R0 * 1.08, y(bt * 1.5));
+      ctx.quadraticCurveTo(R0 * .84, y(bt * .35), R0 * .62, y(bt * .55)); ctx.lineTo(R0 * .1, y(bt * .6)); ctx.closePath();
+      ctx.fillStyle = RCOL[tier('grind')]; ctx.fill(); ctx.lineWidth = U; ctx.strokeStyle = '#0a0810'; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(R0 * .14, y(-bt * .5), R0 * .46, U);
       ctx.restore();
     }
-    if (alpha === 1) { gear(0, 0, r.r * .32, 8, 0, '#3a3d52', .35); ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(0, 0, r.r * .1, 0, 7); ctx.fill(); }
+    if (alpha === 1) {
+      ctx.beginPath(); ctx.arc(0, 0, R0 * .34, 0, 7); ctx.fillStyle = '#3a3d52'; ctx.fill(); ctx.lineWidth = U; ctx.strokeStyle = '#0a0810'; ctx.stroke();
+      ctx.fillStyle = '#c8cce0'; for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; ctx.fillRect(Math.cos(a) * R0 * .24 - U / 2, Math.sin(a) * R0 * .24 - U / 2, U, U); }
+      ctx.fillStyle = '#ff9f1c'; ctx.beginPath(); ctx.arc(0, 0, R0 * .1, 0, 7); ctx.fill();
+    }
     ctx.restore();
   }
   function beacon(x, y, on, col, now) {
@@ -793,6 +810,14 @@ function start() {
     press: {
       back(sc, dt, al, now, lerp) {
         const L = sc.L, p = sc.plate, s = sc.snd; drawBelts(sc, now);
+        const fr = c01((p.position.y - p.restY) / (p.botY - p.restY)); // a lemez mélysége
+        if (fr > 0) { ctx.fillStyle = `rgba(0,0,0,${(.5 * fr).toFixed(2)})`; ctx.fillRect(q(L.plL), q(L.ft - L.bh - 3 * U), q(L.pw), 3 * U + L.bh); } // egyre sötétebb árnyék
+        for (let y = L.hy + 6 * U; y < L.ft - 4 * U; y += 5 * U) { // LED-létra az oszlopokon: a lemez helyzetét mutatja
+          const col = y < p.position.y ? (y > L.ft * .7 ? '#ff4040' : y > L.ft * .45 ? '#ffe03c' : '#3cff3c') : '#1d1d28';
+          R(L.cw / 2 - U, y, 2 * U, 2 * U, col); R(W - L.cw / 2 - U, y, 2 * U, 2 * U, col);
+        }
+        if ((p.pp.ph === 'down' || p.pp.ph === 'hold') && Math.random() < .25) sc.puff(W / 2 + (Math.random() < .5 ? -1 : 1) * W * .035, L.cylB, 1, '#e8ecf5', 1.4); // gőz a hengerből
+        if (p.pp.ph === 'hold' && Math.random() < .3) sc.P(W / 2 + rnd(-W * .03, W * .03), L.cylB + 2 * U, rnd(-8, 8), 20, .8, '#e0a020', { g: 500 });                // olajcseppek
         const py = lerp(p.py == null ? p.position.y : p.py, p.position.y) - L.ph / 2, rw = q(W * .07), rx = W / 2, hy = L.hy;
         R(rx - rw / 2, L.cylB, rw, py - L.cylB + U, '#9aa0b8'); R(rx - rw / 2, L.cylB, U, py - L.cylB, '#d6dbef'); R(rx + rw / 2 - U, L.cylB, U, py - L.cylB, '#5a5f78');
         for (const x of [L.rodL, L.rodR]) { R(x, hy + 10 * U, 2 * U, py - hy - 10 * U + U, '#9aa0b8'); R(x, hy + 10 * U, U, py - hy - 10 * U, '#d6dbef'); }
@@ -801,7 +826,7 @@ function start() {
         const y = hy + 16 * U, x0 = L.hx + L.cylW, x1 = L.bx + L.bw - 6 * U, ph = (now / 1000) * 40 * (.3 + s.press * 2) * (s.dir > 0 ? -1 : 1);
         for (let x = x0 + ((ph % (12 * U)) + 12 * U) % (12 * U); x < x1; x += 12 * U) R(x, y, 2 * U, 2 * U, '#e0a020');
         // lámpák + nyomásmérő a henger előlapján
-        const phs = p.pp.ph, vmx = Math.min(16 * S, (3 + .45 * st.press) * S), lx = L.hx + 4 * U, ly = hy + 8 * U;
+        const phs = p.pp.ph, vmx = pressV(), lx = L.hx + 4 * U, ly = hy + 8 * U;
         R(lx - U, ly - U, 12 * U, 4 * U, '#0e0b14');
         R(lx, ly, 2 * U, 2 * U, phs === 'wait' ? '#3cff3c' : '#1d4a1d'); R(lx + 4 * U, ly, 2 * U, 2 * U, phs === 'up' ? '#ffe03c' : '#4a4a1d'); R(lx + 8 * U, ly, 2 * U, 2 * U, (phs === 'down' || phs === 'hold') ? '#ff3c3c' : '#4a1d1d');
         const gT = phs === 'hold' ? 1 : phs === 'down' ? p.pp.v / vmx * .8 : phs === 'up' ? .3 : 0; sc.gP += (gT - sc.gP) * Math.min(1, dt * 8);
@@ -824,20 +849,13 @@ function start() {
         for (let x = px + 2 * U; x < px + pw - 2 * U; x += 10 * U) { R(x, py + 2 * U, U, U, '#c8cce0'); R(x, py + L.ph - 6 * U, U, U, '#c8cce0'); }
         for (let x = px + 2 * U; x < px + pw - 3 * U; x += 5 * U) { R(x, py + L.ph, 3 * U, U, '#d8dcee'); R(x + U, py + L.ph + U, U, 2 * U, '#d8dcee'); } // acélfogak
         R(px - 2 * U, py, 2 * U, L.ph, '#6a6a80'); R(px + pw, py, 2 * U, L.ph, '#6a6a80'); // vezetősaruk
+        const mv = p.pp.ph === 'down' || p.pp.ph === 'up', fl = Math.sin(now / 90) > 0; // villogó jelzőlámpák a lemezen
+        R(px + 2 * U, py - 3 * U, 3 * U, 3 * U, mv && fl ? '#ffa020' : '#4a2a10'); R(px + pw - 5 * U, py - 3 * U, 3 * U, 3 * U, mv && !fl ? '#ffa020' : '#4a2a10');
+        if (p.pp.ph === 'hold') { ctx.fillStyle = `rgba(255,140,40,${(.3 + .15 * Math.sin(now / 80)).toFixed(2)})`; ctx.fillRect(q(px), q(py + L.ph), q(pw), 3 * U); } // izzó nyomás-felület
       }
     },
     grind: {
-      back(sc, dt, al, now) {
-        const L = sc.L, s = sc.snd; drawBelts(sc, now); drawGearWall(sc, dt);
-        const cx = W / 2, ey = L.topY + (L.botY - L.topY) * .45, glow = .5 + .5 * Math.sin(now / 300) + s.load;
-        for (const ex of [cx - W * .12, cx + W * .12]) { // világító szemek
-          ctx.fillStyle = `rgba(255,40,40,${Math.min(.5, .12 + .15 * glow)})`; ctx.fillRect(q(ex - 6 * U), q(ey - 4 * U), 12 * U, 8 * U);
-          R(ex - 4 * U, ey - U, 8 * U, 2 * U, '#ff2a2a'); R(ex - U, ey - U, 2 * U, 2 * U, '#ffd0c0'); R(ex - 4 * U, ey - 2 * U, 3 * U, U, '#ff2a2a');
-        }
-        const sp = (.3 + s.load * 1.5) * bladeSpeed() * 20;
-        if (L.motor) { ctx.save(); ctx.translate(L.motor.x, L.motor.y); ctx.rotate(now / 1000 * sp * 3); ctx.fillStyle = '#c8cce0'; for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.fillRect(0, -U, L.motor.r, 2 * U); } ctx.restore(); }
-        if (L.gb) { gear(L.gb.x, L.gb.y, L.gb.r1, 10, now / 1000 * sp, '#8a90a8', .3); gear(L.gb.x, L.gb.y2, L.gb.r2, 8, -now / 1000 * sp * L.gb.r1 / L.gb.r2, '#a89080', .3); }
-      },
+      back(sc, dt, al, now) { drawBelts(sc, now); drawGrindParts(sc, dt); },
       front(sc, dt, al, now, lerp) {
         sc.rotors.forEach(r => { const ang = lerp(r.pa == null ? r.angle : r.pa, r.angle); drawRotor(r, ang - r.dir * .16, .25); drawRotor(r, ang - r.dir * .08, .35); drawRotor(r, ang, 1); });
       }
@@ -903,11 +921,13 @@ function start() {
       }
     }
     D.front(sc, dt, al, now, lerp);
+    if (sc.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${sc.flash.toFixed(2)})`; ctx.fillRect(0, 0, W, H); sc.flash = Math.max(0, sc.flash - dt * 1.8); } // becsapódási villanás
 
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i]; s.t -= dt; if (s.t <= 0) { sparks.splice(i, 1); continue; }
       s.vy += s.g * dt; s.x += s.vx * dt; s.y += s.vy * dt;
-      if (s.k === 'd') { const sz = U * (s.sz + (1 - s.t / s.t0) * s.grow); ctx.globalAlpha = Math.min(.6, s.t / s.t0 * .9); R(s.x - sz / 2, s.y - sz / 2, sz, sz, s.c); ctx.globalAlpha = 1; }
+      if (s.k === 'r') { const f = 1 - s.t / s.t0; ctx.globalAlpha = .7 * (1 - f); ctx.strokeStyle = s.c; ctx.lineWidth = U * 1.5; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.sz * f, s.sz * f * .16, 0, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+      else if (s.k === 'd') { const sz = U * (s.sz + (1 - s.t / s.t0) * s.grow); ctx.globalAlpha = Math.min(.6, s.t / s.t0 * .9); R(s.x - sz / 2, s.y - sz / 2, sz, sz, s.c); ctx.globalAlpha = 1; }
       else R(s.x, s.y, U * s.sz, U * s.sz, s.c);
     }
     const act = sc.kind === 'press' ? sc.plate.pp.ph === 'down' || sc.plate.pp.ph === 'hold' : sc.kind === 'grind' ? sc.snd.load > .3 : sc.temp > 800;
@@ -1009,7 +1029,7 @@ function start() {
 
   const menu = $('menu');
   $('btnMenu').onclick = () => { menu.classList.remove('hide'); paused = true; };
-  $('btnPlay').onclick = () => { menu.classList.add('hide'); paused = false; audioInit(); goFull(); };
+  $('btnPlay').onclick = () => { menu.classList.add('hide'); paused = false; audioInit(); };
   $('chkNames').checked = st.names; $('chkNames').onchange = e => { st.names = e.target.checked; save(); };
   $('chkSfx').checked = st.sfx; $('chkSfx').onchange = e => { st.sfx = e.target.checked; save(); };
   $('btnReset').onclick = () => { if (confirm('Biztosan törlöd az egész mentést (pénz, szint, megbízások, adósság)?')) { try { localStorage.removeItem(SAVE); } catch (e) {} location.reload(); } };
