@@ -330,6 +330,12 @@ function start() {
     ctx.fillStyle = '#fff'; ctx.fillText(txt, x + w / 2, y + h / 2 + U * .5);
   }
 
+  // A markoló karmai: váll (hw) → könyök → hegy. Az 'a' szög a nyitás (nagy = tágra nyitva), a hegy befelé hajlik.
+  function jawGeom(a, cl, hw) {
+    const a2 = a * .35 - .5, jx = hw + .55 * cl * Math.sin(a), jy = .55 * cl * Math.cos(a);
+    return { jx, jy, tx: jx + .6 * cl * Math.sin(a2), ty: jy + .6 * cl * Math.cos(a2) };
+  }
+
   // ---------- EGY GÉP-KÁRTYA = EGY KÜLÖN FIZIKAI VILÁG ----------
   function makeScene(kind) {
     const engine = Engine.create({ positionIterations: 8, velocityIterations: 6 }), world = engine.world;
@@ -577,8 +583,8 @@ function start() {
     sc.endDrag = () => { if (!sc.drag) return; Composite.remove(world, sc.drag.c); sc.drag = null; };
     sc.up = id => { if (sc.drag && id === sc.drag.id) sc.endDrag(); };
     // ----- SZEMÉTTELEP: óriási hulladékhalom + egy ujjal irányítható daru (a markoló a gépek torkába rakja a tárgyakat) -----
-    const cr = sc.cr = { x: 0, vx: 0, len: 0, ang: 0, angv: 0, gx: 0, gy: 0, aimX: 0, aimY: 0, hold: null, close: 0, touch: false, pending: false, pt: 0, miss: 0 };
-    const clawLen = () => Math.max(18, 34 * S), clampv = (v, a, b) => Math.max(a, Math.min(b, v));
+    const cr = sc.cr = { x: 0, vx: 0, len: 0, ang: 0, angv: 0, gx: 0, gy: 0, aimX: 0, aimY: 0, hold: null, close: 0, a: 1, touch: false, pending: false, pt: 0, miss: 0 };
+    const clawLen = () => Math.max(32, 56 * S), clampv = (v, a, b) => Math.max(a, Math.min(b, v));
     function junkDefs() { const lv = level(), out = []; for (const cat in CATS) for (const d of CATS[cat]) if (unlockLvl(d) <= lv) out.push({ d, cat }); return out; }
     function pickJunk() { // a halomban inkább az olcsóbb tárgyak vannak, de minden kinyitott fajta előfordul
       const defs = junkDefs(), w = defs.map(o => 1 / (1 + Math.log10(o.d.v + 10))); let r = Math.random() * w.reduce((a, b) => a + b, 0);
@@ -635,12 +641,15 @@ function start() {
       c.close += ((c.hold ? 1 : 0) - c.close) * .2; if (c.miss > 0) c.miss--;
       snd.press = Math.min(1, (Math.abs(c.vx) + Math.abs(wantLen - c.len) * .3) / vmaxX); snd.dir = 1;
       if (c.hold) {
-        const it = c.hold; Body.setPosition(it, { x: c.gx, y: c.gy + clawLen() * .55 }); Body.setVelocity(it, { x: 0, y: 0 }); Body.setAngle(it, c.ang * .6); Body.setAngularVelocity(it, 0); sc.hover = it;
+        const it = c.hold; Body.setPosition(it, { x: c.gx, y: c.gy + clawLen() * .8 }); Body.setVelocity(it, { x: 0, y: 0 }); Body.setAngle(it, c.ang * .6); Body.setAngularVelocity(it, 0); sc.hover = it;
       } else {
-        let best = null, bd = 1e9; const reach = clawLen() * 1.5;
-        for (const it of items) { if (it.carried) continue; const d = Math.hypot(it.position.x - c.gx, it.position.y - (c.gy + clawLen() * .5)); if (d < Math.max(reach, it.dw * .5 + 6) && d < bd) { bd = d; best = it; } }
+        let best = null, bd = 1e9; const reach = clawLen() * 1.2;
+        for (const it of items) { if (it.carried) continue; const d = Math.hypot(it.position.x - c.gx, it.position.y - (c.gy + clawLen() * .8)); if (d < Math.max(reach, it.dw * .5 + 6) && d < bd) { bd = d; best = it; } }
         sc.hover = best;
       }
+      const gripA = w => { const cl = clawLen(), hw = 7 * U; let best = .0, bd = 1e9; for (let a = 0; a <= 1.2; a += .02) { const d = Math.abs(jawGeom(a, cl, hw).tx - w / 2 + U); if (d < bd) { bd = d; best = a; } } return best; };
+      const aT = c.hold ? gripA(c.hold.dw) : ((sc.hover || c.touch || c.pending) ? 1.1 : .55);
+      c.a += (aT - c.a) * (c.hold ? .22 : .16);
       if (c.pending && !c.touch) { c.pt++; const d = Math.hypot(c.gx - tx, c.gy - ty); if ((d < 6 * U && Math.abs(c.vx) < .5) || c.pt > 300) { c.pending = false; act(); } } // oda megy, ahová érintettél, és ott cselekszik
     }
     sc.act = act; sc.topUp = topUp; sc.throatAt = throatAt;
@@ -886,7 +895,7 @@ function start() {
         if (c.pending || c.touch) { const x = clampXY(c.aimX, L.cw, W - L.cw), y = clampXY(c.aimY, L.railY, L.ft); R(x - 4 * U, y, 3 * U, U, '#ffe03c'); R(x + U, y, 3 * U, U, '#ffe03c'); R(x, y - 4 * U, U, 3 * U, '#ffe03c'); R(x, y + U, U, 3 * U, '#ffe03c'); } // célkereszt
       },
       front(sc, dt, al, now) {
-        const L = sc.L, c = sc.cr, cl = Math.max(18, 34 * S);
+        const L = sc.L, c = sc.cr, cl = Math.max(32, 56 * S);
         for (const it of sc.items) { if (it.carried || !orderWants(it)) continue; if (Math.sin(now / 250 + it.position.x) > -.3) label('★', it.position.x, it.bounds.min.y - 3 * U, 6 * U, '#ffe03c'); } // ★ = megbízáshoz kell
         if (sc.hover && !c.hold) { const b = sc.hover.bounds, a = Math.sin(now / 150) > 0 ? 2 * U : 3 * U, x0 = b.min.x - a, x1 = b.max.x + a, y0 = b.min.y - a, y1 = b.max.y + a, k = 4 * U, col = '#ffe03c'; // célkeret
           R(x0, y0, k, U, col); R(x0, y0, U, k, col); R(x1 - k, y0, k, U, col); R(x1 - U, y0, U, k, col); R(x0, y1 - U, k, U, col); R(x0, y1 - k, U, k, col); R(x1 - k, y1 - U, k, U, col); R(x1 - U, y1 - k, U, k, col); }
@@ -894,15 +903,22 @@ function start() {
         R(x - 7 * U, ty - 3 * U, 14 * U, 7 * U, '#4a4a5e'); R(x - 7 * U, ty - 3 * U, 14 * U, U, '#a4a4bc'); R(x - 5 * U, ty + 4 * U, 3 * U, 2 * U, '#25252f'); R(x + 2 * U, ty + 4 * U, 3 * U, 2 * U, '#25252f'); R(x - U, ty - 5 * U, 2 * U, 2 * U, (Math.abs(c.vx) > .5 && Math.sin(now / 90) > 0) ? '#ffa020' : '#4a2a10');
         const dx = c.gx - x, dy = c.gy - (ty + 4 * U), n = Math.max(2, Math.ceil(Math.hypot(dx, dy) / (3 * U)));
         for (let i = 0; i <= n; i++) R(x + dx * i / n, ty + 4 * U + dy * i / n, U * 1.5, 2 * U, i % 2 ? '#8a8aa0' : '#4a4a5e');
-        ctx.save(); ctx.translate(c.gx, c.gy); ctx.rotate(-c.ang); // markoló (narancshéj-fogó): nyitva a karmok szétnyílnak, megfogáskor összezárnak
-        const o = 1 - c.close, a = .12 + .85 * o + (c.miss > 0 ? Math.sin(now / 40) * .1 : 0), hub = 5 * U;
+        ctx.save(); ctx.translate(c.gx, c.gy); ctx.rotate(-c.ang); // markoló: hidraulikus rudak nyitják-zárják a karmokat
+        const hw = 7 * U, a = c.a + (c.miss > 0 ? Math.sin(now / 40) * .06 : 0), lw = Math.max(3 * U, cl * .17), g = jawGeom(a, cl, hw);
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         for (const s of [-1, 1]) {
-          const tipX = s * Math.sin(a) * cl, tipY = Math.cos(a) * cl, cx = s * Math.sin(a) * cl * 1.3, cy2 = Math.cos(a) * cl * .4;
-          ctx.beginPath(); ctx.moveTo(s * 2 * U, 0); ctx.quadraticCurveTo(cx, cy2, tipX, tipY); ctx.lineCap = 'round';
-          ctx.strokeStyle = '#0a0810'; ctx.lineWidth = U * 4.5; ctx.stroke(); ctx.strokeStyle = '#ff9f1c'; ctx.lineWidth = U * 2.5; ctx.stroke();
-          ctx.fillStyle = '#e8e0f5'; ctx.fillRect(tipX - U, tipY - U, 2 * U, 2 * U);
+          const px = s * hw, jx = s * g.jx, tx = s * g.tx;
+          ctx.strokeStyle = '#0a0810'; ctx.lineWidth = 3 * U; ctx.beginPath(); ctx.moveTo(s * 2 * U, -3 * U); ctx.lineTo(jx, g.jy * .85); ctx.stroke(); // hidraulikus rúd
+          ctx.strokeStyle = '#c8cce0'; ctx.lineWidth = 1.6 * U; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(jx, g.jy); ctx.lineTo(tx, g.ty); // karom: váll → könyök → hegy
+          ctx.strokeStyle = '#0a0810'; ctx.lineWidth = lw + 2 * U; ctx.stroke(); ctx.strokeStyle = '#ff9f1c'; ctx.lineWidth = lw; ctx.stroke();
+          ctx.strokeStyle = '#ffd88a'; ctx.lineWidth = U; ctx.beginPath(); ctx.moveTo(px, -U); ctx.lineTo(jx, g.jy - U); ctx.stroke();
+          ctx.fillStyle = '#e8e0f5'; ctx.fillRect(tx - U, g.ty - U, 2 * U, 2 * U);                                                          // karomhegy
+          ctx.fillStyle = '#3a3d52'; ctx.fillRect(px - U, -U, 2 * U, 2 * U); ctx.fillRect(jx - U, g.jy - U, 2 * U, 2 * U);                  // csuklócsapok
         }
-        ctx.lineCap = 'butt'; ctx.fillStyle = '#0a0810'; ctx.fillRect(-hub - U, -4 * U - U, 2 * hub + 2 * U, 7 * U); ctx.fillStyle = '#c0701a'; ctx.fillRect(-hub, -4 * U, 2 * hub, 5 * U); ctx.fillStyle = '#ffb347'; ctx.fillRect(-hub, -4 * U, 2 * hub, U);
+        ctx.lineCap = 'butt';
+        ctx.fillStyle = '#0a0810'; ctx.fillRect(-hw - U, -6 * U, 2 * hw + 2 * U, 9 * U); ctx.fillStyle = '#c0701a'; ctx.fillRect(-hw, -5 * U, 2 * hw, 7 * U); // agy (henger-ház)
+        ctx.fillStyle = '#ffb347'; ctx.fillRect(-hw, -5 * U, 2 * hw, U); ctx.fillStyle = '#3a3d52'; ctx.fillRect(-2 * U, -4 * U, 4 * U, 5 * U);
         ctx.restore();
       }
     },
