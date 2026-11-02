@@ -14,12 +14,13 @@ function start() {
   const rnd = (a, b) => a + Math.random() * (b - a);
   const fmt = n => Math.floor(n).toLocaleString('hu-HU') + ' Ft';
   const KINDS = ['press', 'grind', 'melt'];
+  const ALL = ['yard', 'press', 'grind', 'melt']; // szeméttelep + három gép (mind külön fizikai világ)
 
   // ---------- MENTÉS ----------
   const SAVE = 'zuzo_save_v1';
-  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'press', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null, tset: 0, auto: false, pad: false };
+  let st = { money: 50, press: 1, grind: 1, melt: 1, sfx: true, names: true, card: 'yard', xp: 0, chapter: 0, paid: 0, won: false, orders: [], stats: { kills: 0, earned: 0 }, sel: null, tset: 0, auto: false, pad: false };
   try { Object.assign(st, JSON.parse(localStorage.getItem(SAVE) || '{}')); } catch (e) {}
-  if (!KINDS.includes(st.card)) st.card = 'press';
+  if (!ALL.includes(st.card)) st.card = 'yard';
   if (!st.stats) st.stats = { kills: 0, earned: 0 };
   let saveT = 0;
   const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(SAVE, JSON.stringify(st)); } catch (e) {} }, 400); };
@@ -50,7 +51,7 @@ function start() {
   let W = 0, H = 0, S = 1, U = 2, lw = 0, lh = 0, cc = ctx, paused = true;
   const scenes = {};
   let cur = st.card, view = cur;   // cur = utoljára használt gép-kártya, view = ami látszik (gép vagy 'orders')
-  const TABS = ['press', 'grind', 'melt', 'orders'];
+  const TABS = ['yard', 'press', 'grind', 'melt', 'orders'];
 
   // =====================================================================================
   //  JÁTÉKMENET – „Zúzó Kft.”: megbízások → XP/szint → új tárgyak + fejlesztési plafon → adósság törlesztése
@@ -99,6 +100,7 @@ function start() {
     const d = all[(Math.random() * Math.min(6, all.length)) | 0]; // a legértékesebb kinyitott tárgyak egyike
     return { id, type: 'item', k, name: d.n, need: 1, have: 0, money: Math.round(d.v * .8 / 10) * 10, xp: 20 + lv * 3, text: `${VERB[k]} egy „${d.n}” ${d.e} tárgyat (${LOC[k]})` };
   }
+  const orderWants = it => st.orders.some(o => (o.type === 'count' && o.cat === it.cat) || (o.type === 'item' && o.name === it.name)); // ★ a telepen
   function ensureOrders() { if (!Array.isArray(st.orders)) st.orders = []; while (st.orders.length < 3) st.orders.push(genOrder()); }
   function track(k, it, pay) { // minden zúzás: statisztika + XP + megbízás-haladás
     st.stats.earned += pay;
@@ -146,7 +148,7 @@ function start() {
         `<div class="of"><span>${prog}</span><b>+${fmt(o.money)} · +${o.xp} XP</b><button class="mini" data-r="${i}">Csere${cost ? ' −' + fmt(cost) : ''}</button></div></div>`;
     }).join('');
     $('orders').innerHTML =
-      (st.stats.kills < 12 ? `<div class="card2 tip"><b>💡 Hogyan működik?</b><br>1) Lent válassz tárgyat és nyomd meg a <b>Létrehoz</b> gombot (a tárgy beszerzési ára az érték ~35%-a).<br>2) A <b>prést</b> te működteted a kapcsolóval, a <b>daráló</b> magától zúz, az <b>olvasztót</b> a hőfokgombbal kell befűtened (a fűtés pénzbe kerül) – cserébe ×2,5 pénzt ad.<br>3) A haszonból <b>fejleszd a gépet</b>, a megbízások XP-t adnak: új szint = új tárgyak és magasabb gép-plafon.<br>4) Végső cél: <b>fizesd ki a bank tartozását</b>!</div>` : '') +
+      (st.stats.kills < 12 ? `<div class="card2 tip"><b>💡 Hogyan működik?</b><br>1) A <b>🏗️ Telepen</b> fogd meg a daruval a kívánt tárgyat (érintsd meg, hova menjen a markoló), és engedd a gép <b>torkába</b> – a ★ jelzi, mire van megbízásod (beszerzési ár: az érték ~35%-a).<br>2) A <b>prést</b> te működteted a kapcsolóval, a <b>daráló</b> magától zúz, az <b>olvasztót</b> a hőfokgombbal kell befűtened (a fűtés pénzbe kerül) – cserébe ×2,5 pénzt ad.<br>3) A haszonból <b>fejleszd a gépet</b>, a megbízások XP-t adnak: új szint = új tárgyak és magasabb gép-plafon.<br>4) Végső cél: <b>fizesd ki a bank tartozását</b>!</div>` : '') +
       `<div class="card2"><div class="h">🏭 Zúzó Kft. · Szint ${lv}</div><div class="bar big"><i style="width:${li.rem / li.need * 100}%"></i></div>` +
       `<div class="sm">${li.rem} / ${li.need} XP · gépek max. szintje: ${capOf()}<br>Következő szint: ${nxt.length ? '🔓 ' + nxt.slice(0, 6).map(d => d.e).join(' ') + (nxt.length > 6 ? ' +' + (nxt.length - 6) : '') + ' új tárgy' : 'magasabb gép-plafon'}</div></div>` +
       `<div class="card2"><div class="h">📖 ${st.chapter + 1}. fejezet: ${ch.name}</div><div class="sm">${ch.story}</div><div class="bar big debt"><i style="width:${Math.min(100, st.paid / ch.debt * 100)}%"></i></div>` +
@@ -163,16 +165,19 @@ function start() {
   function ui() {
     $('money').textContent = fmt(st.money);
     const li = lvlInfo(); $('lvlTxt').textContent = 'SZ.' + li.l; $('xpBar').style.width = (li.rem / li.need * 100) + '%';
-    KINDS.forEach(k => { const t = $('tab_' + k); t.innerHTML = `${LV[k].icon} ${LV[k].name}<small>Sz.${st[k]}${k === 'melt' && scenes.melt ? ' · ' + Math.round(scenes.melt.temp) + '°' : ''}</small>`; t.classList.toggle('on', view === k); });
-    $('tab_orders').innerHTML = `📋 MEGBÍZÁS<small>${st.orders.length} aktív</small>`; $('tab_orders').classList.toggle('on', view === 'orders');
-    const om = view === 'orders'; $('orders').hidden = !om; $('ctlMachine').hidden = om; $('ctlOrders').hidden = !om;
+    const TI = { yard: ['🏗️', 'TELEP'], press: ['🔨', 'PRÉS'], grind: ['⚙️', 'DARÁLÓ'], melt: ['🔥', 'OLVASZTÓ'], orders: ['📋', 'MEGBÍZÁS'] };
+    TABS.forEach(k => {
+      const t = $('tab_' + k), sub = KINDS.includes(k) ? `Sz.${st[k]}${k === 'melt' && scenes.melt ? ' · ' + Math.round(scenes.melt.temp) + '°' : ''}` : k === 'orders' ? `${st.orders.length} aktív` : 'daru';
+      t.innerHTML = `<span class="ti">${TI[k][0]}</span>${TI[k][1]}<small>${sub}</small>`; t.classList.toggle('on', view === k);
+    });
+    const om = view === 'orders', yv = view === 'yard', mv = KINDS.includes(view);
+    $('orders').hidden = !om; $('ctlOrders').hidden = !om; $('ctlYard').hidden = !yv; $('ctlMachine').hidden = !mv;
     if (om) renderOrders();
-    else {
-      const c = costOf(cur), cap = capOf(), b = $('btnUp'), capped = st[cur] >= cap;
-      b.innerHTML = capped ? `<b>🔒 ${LV[cur].name} Sz.${st[cur]}</b> · plafon!<br><small>Lépj szintet a megbízásokkal (új plafon: +2)</small>`
-        : `<b>⬆ ${LV[cur].name} Sz.${st[cur]} → ${st[cur] + 1}</b> · ${fmt(c)}<br><small>${effText(cur)}</small>`;
+    if (mv) {
+      const c = costOf(view), cap = capOf(), b = $('btnUp'), capped = st[view] >= cap;
+      b.innerHTML = capped ? `<b>🔒 ${LV[view].name} Sz.${st[view]}</b> · plafon!<br><small>Lépj szintet a megbízásokkal (új plafon: +2)</small>`
+        : `<b>⬆ ${LV[view].name} Sz.${st[view]} → ${st[view] + 1}</b> · ${fmt(c)}<br><small>${effText(view)}</small>`;
       b.classList.toggle('off', capped || st.money < c);
-      refreshPick();
       $('ctlPress').hidden = view !== 'press'; $('ctlMelt').hidden = view !== 'melt';
       $('btnAuto').hidden = st.press < 5; $('btnAuto').innerHTML = st.auto ? '⚙ AUTO<small>BE</small>' : '⚙ AUTO<small>KI</small>';
     }
@@ -189,74 +194,18 @@ function start() {
   $('goal').onclick = () => setView('orders');
   $('orders').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-r]'); if (b) rerollOrder(+b.dataset.r); });
   $('btnUp').onclick = () => {
-    const c = costOf(cur);
-    if (st[cur] >= capOf()) return toast(`Plafon: Sz.${capOf()} – szintet kell lépned (megbízások)!`);
+    if (!KINDS.includes(view)) return;
+    const c = costOf(view);
+    if (st[view] >= capOf()) return toast(`Plafon: Sz.${capOf()} – szintet kell lépned (megbízások)!`);
     if (st.money < c) return toast('Nincs elég pénz');
-    st.money -= c; st[cur]++; save(); ui(); audioInit();
+    st.money -= c; st[view]++; save(); ui(); audioInit();
     beep(520, .1, 'triangle'); setTimeout(() => beep(780, .14, 'triangle'), 90); noiseBurst(3200, .25, .05, 'highpass');
   };
   $('pay25').onclick = () => payDebt(.25); $('pay50').onclick = () => payDebt(.5); $('payMax').onclick = () => payDebt(1);
 
-  // ---------- TÁRGYVÁLASZTÓ („beszerzés”) ----------
-  const sel = { cat: Object.keys(CATS)[0], idx: 0 };
-  let pickCat = sel.cat;
-  try { if (st.sel && CATS[st.sel.cat] && CATS[st.sel.cat][st.sel.idx]) Object.assign(sel, st.sel), pickCat = sel.cat; } catch (e) {}
-  const selDef = () => CATS[sel.cat][sel.idx];
-  function refreshPick() {
-    const d = selDef(), cost = buyCost(d), lock = unlockLvl(d) > level();
-    $('btnPick').innerHTML = `${d.e} <b>${d.n}</b> <small>${lock ? '🔒 Sz.' + unlockLvl(d) : cost ? fmt(cost) : 'ingyen'}</small> ▾`;
-    $('btnMake').classList.toggle('off', lock || st.money < cost);
-  }
-  function renderPicker() {
-    const lv = level();
-    $('pkCats').innerHTML = Object.keys(CATS).map(c => `<button class="chip${c === pickCat ? ' on' : ''}" data-c="${c}">${c}</button>`).join('');
-    $('pkList').innerHTML = CATS[pickCat].map((d, i) => {
-      const u = unlockLvl(d), lock = u > lv, cost = buyCost(d);
-      return `<button class="it${lock ? ' lock' : ''}${sel.cat === pickCat && sel.idx === i ? ' sel' : ''}" data-i="${i}"><span class="e">${lock ? '🔒' : d.e}</span><span class="n">${d.n}</span>` +
-        `<span class="p">${lock ? 'Sz.' + u : cost ? fmt(cost) : 'ingyen'}<small>érték: ${fmt(d.v)}</small></span></button>`;
-    }).join('');
-  }
-  $('btnPick').onclick = () => { renderPicker(); $('picker').classList.remove('hide'); };
-  $('pkClose').onclick = () => $('picker').classList.add('hide');
-  $('pkCats').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-c]'); if (b) { pickCat = b.dataset.c; renderPicker(); } });
-  $('pkList').addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('[data-i]'); if (!b) return;
-    const i = +b.dataset.i, d = CATS[pickCat][i];
-    if (unlockLvl(d) > level()) return toast(`Ez a tárgy a(z) ${unlockLvl(d)}. szinttől érhető el`);
-    sel.cat = pickCat; sel.idx = i; st.sel = { cat: sel.cat, idx: sel.idx }; save(); $('picker').classList.add('hide'); refreshPick();
-  });
-  // Létrehozás: koppintásra 1 db; nyomva tartva folyamatosan jönnek a tárgyak (egyre gyorsabban, amíg van pénz és hely)
-  function make(quiet) {
-    audioInit(); const d = selDef(), cost = buyCost(d);
-    if (unlockLvl(d) > level()) { toast(`Zárolva: ${unlockLvl(d)}. szint kell`); return 'stop'; }
-    if (st.money < cost) { toast('Nincs elég pénz a beszerzéshez'); return 'stop'; }
-    const r = scenes[cur].spawn(d, sel.cat);
-    if (r === 'full') { toast('A gép tele van – várd meg, míg feldolgozza'); return 'stop'; }
-    if (r === 'busy') { if (!quiet) toast('Az adagoló foglalt, egy pillanat…'); return 'busy'; }
-    st.money -= cost; save(); beep(440, .06, 'triangle'); ui(); return 'ok';
-  }
-  let holdT = 0, holding = false;
-  function stopHold() { holding = false; clearTimeout(holdT); }
-  function startHold(e) {
-    e.preventDefault(); stopHold();
-    if (make(false) === 'stop') return;
-    holding = true; let delay = 420;
-    const tick = () => {
-      if (!holding) return;
-      const r = make(true);
-      if (r === 'stop') return stopHold();
-      if (r === 'ok') delay = Math.max(90, delay * .85);
-      holdT = setTimeout(tick, r === 'busy' ? 60 : delay);
-    };
-    holdT = setTimeout(tick, delay);
-  }
-  const mk = $('btnMake');
-  mk.addEventListener('pointerdown', e => { try { mk.setPointerCapture(e.pointerId); } catch (x) {} startHold(e); });
-  ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'].forEach(t => mk.addEventListener(t, stopHold));
-  mk.addEventListener('contextmenu', e => e.preventDefault());
-  mk.addEventListener('click', e => { if (e.detail === 0) make(false); }); // billentyűzetről (Enter/Szóköz)
-  document.addEventListener('visibilitychange', stopHold);
 
+  $('btnGrab').onclick = () => { audioInit(); scenes.yard.act(); };
+  $('btnShuffle').onclick = () => { scenes.yard.shuffle(); toast('Új halom érkezett'); };
   // Prés-kapcsoló: nyomd = egy ütés, tartsd = folyamatos; (Sz.5-től AUTO mód is van)
   const pb = $('btnPress');
   pb.addEventListener('pointerdown', e => { e.preventDefault(); try { pb.setPointerCapture(e.pointerId); } catch (x) {} audioInit(); const sc = scenes.press; sc.cmd = true; sc.queued = true; pb.classList.add('on'); beep(150, .08, 'square', .06); });
@@ -389,6 +338,7 @@ function start() {
     const { items, dead, sparks, pops, statics, belts, rotors, L, snd } = sc;
     const isCur = () => cur === kind;
     const antiGrav = b => { b.force.y -= b.mass * engine.gravity.y * engine.gravity.scale; };
+    sc.feedFree = () => { if (items.length >= 100) return false; const x0 = L.spawnX - 20 * U, x1 = L.spawnX + 20 * U, y1 = L.spawnTop + 60 * U; return !items.some(b => b.bounds.max.x > x0 && b.bounds.min.x < x1 && b.bounds.min.y < y1); };
     sc.quality = () => sc.temp < 600 ? .7 : Math.min(1.15, .7 + .3 * (sc.temp - 600) / 900); // hidegen rosszabb minőségű fém
     function heat() { // az olvasztó hőmérséklete lassan követi a beállított értéket; a fűtés tüzelőanyagot fogyaszt
       const dt = 1 / 60, noFuel = st.money <= 0, want = noFuel ? 0 : st.tset, rate = want > sc.temp ? 60 + 12 * st.melt : 45;
@@ -440,7 +390,7 @@ function start() {
       } else if (kind === 'grind') {
         const r = Math.min(W * .15, H * .14), cy = L.ft - bh - r - 4;
         [[.32, 1], [.68, -1]].forEach(([fx, dir]) => {
-          const cx = W * fx, bars = [0, 1].map(i => Bodies.rectangle(cx, cy, 2 * r, Math.max(10, 11 * S), { angle: i * Math.PI / 2, density: 3 }));
+          const cx = W * fx, bars = [0, 1].map(i => Bodies.rectangle(cx, cy, 2 * r, Math.max(12, 13 * S), { angle: i * Math.PI / 2, density: 3 }));
           const rot = Body.create({ parts: bars, friction: .8, frictionAir: 0 });
           rot.zk = 'blade'; rot.dir = dir; rot.home = { x: cx, y: cy }; rot.r = r;
           statics.push(rot); rotors.push(rot); Composite.add(world, rot);
@@ -452,6 +402,14 @@ function start() {
         add(Bodies.rectangle(L.cx1 + 100, (L.botY + L.ft) / 2, 200, L.ft - L.botY, { isStatic: true }), '', true);
         mkBelt(L.cx0 + 4, W / 2, 1); mkBelt(W / 2, L.cx1 - 4, -1);
         L.maxW = W * .28; L.maxH = H * .2; L.spawnX = W / 2;
+      } else if (kind === 'yard') {
+        const rWall = W * .58;
+        add(Bodies.rectangle(rWall + 100, H / 2, 200, H * 3, { isStatic: true }), '', true); // a hulladékhalom jobb oldali támfala
+        const gap = 4 * U, xs0 = rWall + 8 * U, hw = (W - cw - 4 * U - xs0 - 2 * gap) / 3, mouth = H * .36;
+        Object.assign(L, { rWall, pl0: cw, pl1: rWall, railY: 17 * U, carryY: Math.max(45 * U, H * .17), thr: {} });
+        KINDS.forEach((k, i) => { L.thr[k] = { x: xs0 + hw / 2 + i * (hw + gap), hw, mouth }; });
+        if (!sc.filled) { sc.filled = true; cr.x = W * .3; cr.aimX = cr.x; cr.aimY = H * .2; cr.len = H * .2 - L.railY; cr.gx = cr.x; cr.gy = H * .2; fillPile(44); }
+        else cr.aimX = Math.min(cr.aimX, W - cw);
       } else {
         Object.assign(L, { lavaTop: L.ft - H * .2, beltY: H * .28, beltEnd: W * .4 });
         mkBelt(cw + 2, L.beltEnd, 1, L.beltY);
@@ -536,6 +494,7 @@ function start() {
     // ----- gépek léptetése -----
     function stepTools() {
       for (const b of items) { b.px = b.position.x; b.py = b.position.y; b.pa = b.angle; }
+      if (kind === 'yard') { yardStep(); return; }
       if (kind === 'press' && sc.plate) {
         const p = sc.plate, s = p.pp, vmax = pressV(), y = p.position.y;
         p.py = y; let vy = 0;
@@ -568,6 +527,7 @@ function start() {
       if (it.circleRadius) Body.setAngularVelocity(it, it.velocity.x / it.circleRadius);
     }
     function pairs(list, start) {
+      if (kind === 'yard') return; // a telepen nincs ütközési sebzés
       for (const pr of list) {
         const A = pr.bodyA.parent, B = pr.bodyB.parent;
         if (A.item && B.item) {
@@ -616,6 +576,81 @@ function start() {
     };
     sc.endDrag = () => { if (!sc.drag) return; Composite.remove(world, sc.drag.c); sc.drag = null; };
     sc.up = id => { if (sc.drag && id === sc.drag.id) sc.endDrag(); };
+    // ----- SZEMÉTTELEP: óriási hulladékhalom + egy ujjal irányítható daru (a markoló a gépek torkába rakja a tárgyakat) -----
+    const cr = sc.cr = { x: 0, vx: 0, len: 0, ang: 0, angv: 0, gx: 0, gy: 0, aimX: 0, aimY: 0, hold: null, close: 0, touch: false, pending: false, pt: 0, miss: 0 };
+    const clawLen = () => Math.max(18, 34 * S), clampv = (v, a, b) => Math.max(a, Math.min(b, v));
+    function junkDefs() { const lv = level(), out = []; for (const cat in CATS) for (const d of CATS[cat]) if (unlockLvl(d) <= lv) out.push({ d, cat }); return out; }
+    function pickJunk() { // a halomban inkább az olcsóbb tárgyak vannak, de minden kinyitott fajta előfordul
+      const defs = junkDefs(), w = defs.map(o => 1 / (1 + Math.log10(o.d.v + 10))); let r = Math.random() * w.reduce((a, b) => a + b, 0);
+      for (let i = 0; i < defs.length; i++) { r -= w[i]; if (r <= 0) return defs[i]; } return defs[0];
+    }
+    function addJunk(o, x, y) {
+      const d = o.d, circ = d.shape === 'c', a = circ ? 1 : Math.max(.7, Math.min(1.35, d.w / d.h)), area0 = circ ? Math.PI * d.r * d.r : d.w * d.h;
+      const w0 = circ ? d.r * 2 : Math.sqrt(area0 * a), h0 = circ ? d.r * 2 : Math.sqrt(area0 / a);
+      const k = Math.min(62 / Math.max(w0, h0), Math.max(24 / Math.min(w0, h0), S * .6)), dw = w0 * k, dh = h0 * k;
+      const opts = { density: d.d, friction: .6, restitution: .1, collisionFilter: { category: 2 } };
+      const body = circ ? Bodies.circle(x, y, dw / 2, opts, 24) : Bodies.rectangle(x, y, dw, dh, Object.assign(opts, { chamfer: { radius: Math.min(dw, dh) * .1 } }));
+      const aw = Math.max(6, Math.round(dw / U)), ah = Math.max(6, Math.round(dh / U));
+      const spr = circ && /^\d+ Ft$/.test(d.n) ? coinSprite(d, aw) : emojiSprite(d, aw, ah);
+      tag(body, { hp: d.hp, v: d.v, c: d.c, n: d.n, cat: o.cat, spr, d: d.d, dw, dh, area: circ ? Math.PI * (dw / 2) ** 2 : dw * dh }); body.def = d;
+      return body;
+    }
+    function topUp(n) { while (items.length < n) addJunk(pickJunk(), rnd(L.pl0 + 20, L.pl1 - 20), L.railY + 20 * U - rnd(0, 60)); }
+    function fillPile(n) { for (let i = 0; i < n; i++) addJunk(pickJunk(), rnd(L.pl0 + 20, L.pl1 - 20), L.ft - 30 - i * 52 - rnd(0, 20)); for (let t = 0; t < 700; t++) Engine.update(engine, 1000 / 60); }
+    const throatAt = (gx, gy) => { for (const k of KINDS) { const t = L.thr[k]; if (Math.abs(gx - t.x) <= t.hw * .8 + clawLen() * .3 && gy <= t.mouth + 4 * U) return k; } return null; };
+    function drop(it) { it.carried = false; it.collisionFilter.mask = it.mask0 == null ? 0xFFFFFFFF : it.mask0; Body.setVelocity(it, { x: 0, y: 0 }); cr.hold = null; }
+    function relocate(it) { Body.setPosition(it, { x: rnd(L.pl0 + 30, L.pl1 - 30), y: L.railY + 20 * U }); drop(it); }
+    function release() { // elenged: a torokba (ha ott van) vagy vissza a halomra
+      const it = cr.hold, k = throatAt(cr.gx, cr.gy);
+      if (k) {
+        const cost = buyCost(it.def), r = scenes[k].spawn(it.def, it.cat);
+        if (r === true) {
+          st.money -= cost; save(); Composite.remove(world, it); items.splice(items.indexOf(it), 1); it.alive = false; cr.hold = null;
+          const t = L.thr[k]; if (isCur()) { pops.push({ x: t.x, y: t.mouth - 6 * U, t: 1.1, txt: '→ ' + LV[k].name, c: '#9aff9a' }); chunks(t.x, t.mouth, 5, it.col); beep(520, .08, 'triangle'); noiseBurst(900, .2, .06, 'lowpass'); }
+          ui(); return;
+        }
+        toast(r === 'full' ? `A(z) ${LV[k].name} tele van – várd meg a feldolgozást` : `A(z) ${LV[k].name} adagolója foglalt, próbáld újra`); relocate(it); return;
+      }
+      if (cr.gx > L.pl0 && cr.gx < L.pl1) drop(it); else relocate(it);
+    }
+    function act() { // megfog / elenged
+      if (cr.hold) return release();
+      const it = sc.hover;
+      if (!it || !it.alive) { cr.miss = 24; cr.close = .6; if (isCur()) beep(180, .06, 'square', .03); return; }
+      const cost = buyCost(it.def);
+      if (st.money < cost) { toast(`Nincs elég pénz: ${fmt(cost)}`); cr.miss = 24; return; }
+      it.mask0 = it.collisionFilter.mask; it.collisionFilter.mask = 0; it.carried = true; cr.hold = it; cr.aimY = L.carryY;
+      addJunk(pickJunk(), rnd(L.pl0 + 20, L.pl1 - 20), L.railY + 22 * U); // a halom újratöltődik
+      if (isCur()) { beep(330, .08, 'square', .05); noiseBurst(1800, .12, .05, 'bandpass'); }
+    }
+    function yardStep() { // daru: futómacska + inga-kötél + markoló
+      const railY = L.railY, c = cr, vmaxX = Math.max(4, 8 * S), lenV = Math.max(3, 6 * S);
+      const tx = clampv(c.aimX, L.cw + 6 * U, W - L.cw - 6 * U), ty = clampv(c.aimY, railY + 14 * U, L.ft - L.bh - 4 * U), wantLen = ty - railY;
+      c.len += clampv(wantLen - c.len, -lenV, lenV);
+      const ax = (tx - c.x) * .012 - c.vx * .16;
+      c.vx = clampv(c.vx + ax, -vmaxX, vmaxX); c.x += c.vx;
+      const Lc = Math.max(c.len, 30);
+      c.angv += -(.8 / Lc) * Math.sin(c.ang) - c.angv * .02 - (ax / Lc) * Math.cos(c.ang); c.ang = clampv(c.ang + c.angv, -.9, .9);
+      c.gx = c.x + c.len * Math.sin(c.ang); c.gy = railY + c.len * Math.cos(c.ang);
+      c.close += ((c.hold ? 1 : 0) - c.close) * .2; if (c.miss > 0) c.miss--;
+      snd.press = Math.min(1, (Math.abs(c.vx) + Math.abs(wantLen - c.len) * .3) / vmaxX); snd.dir = 1;
+      if (c.hold) {
+        const it = c.hold; Body.setPosition(it, { x: c.gx, y: c.gy + clawLen() * .55 }); Body.setVelocity(it, { x: 0, y: 0 }); Body.setAngle(it, c.ang * .6); Body.setAngularVelocity(it, 0); sc.hover = it;
+      } else {
+        let best = null, bd = 1e9; const reach = clawLen() * 1.5;
+        for (const it of items) { if (it.carried) continue; const d = Math.hypot(it.position.x - c.gx, it.position.y - (c.gy + clawLen() * .5)); if (d < Math.max(reach, it.dw * .5 + 6) && d < bd) { bd = d; best = it; } }
+        sc.hover = best;
+      }
+      if (c.pending && !c.touch) { c.pt++; const d = Math.hypot(c.gx - tx, c.gy - ty); if ((d < 6 * U && Math.abs(c.vx) < .5) || c.pt > 300) { c.pending = false; act(); } } // oda megy, ahová érintettél, és ott cselekszik
+    }
+    sc.act = act; sc.topUp = topUp; sc.throatAt = throatAt;
+    sc.shuffle = () => { items.slice().forEach(b => { if (b !== cr.hold) kill(b, 'melt', true); }); fillPile(44); };
+    if (kind === 'yard') { // egy ujj: érintés/húzás = a markoló célpontja; felengedés = oda megy, és megfog vagy elenged
+      sc.down = (p) => { cr.touch = true; cr.pending = false; cr.aimX = p.x; cr.aimY = p.y; return true; };
+      sc.move = (p) => { if (cr.touch) { cr.aimX = p.x; cr.aimY = p.y; } };
+      sc.up = () => { if (cr.touch) { cr.touch = false; cr.pending = true; cr.pt = 0; } };
+      sc.endDrag = () => { cr.touch = false; cr.pending = false; if (cr.hold) drop(cr.hold); };
+    }
     sc.kill = kill;
     sc.step = () => Engine.update(engine, 1000 / 60);
     return sc;
@@ -625,12 +660,14 @@ function start() {
   //  STATIKUS HÁTTEREK (kártyánként egyszer rajzoljuk, átméretezéskor / szintlépéskor újra)
   // =====================================================================================
   const PAL = { press: ['#14111c', '#1c1827', '#221d30', '#181421'], grind: ['#17150f', '#221f18', '#2a261c', '#1b1912'], melt: ['#1c0b0b', '#2b1414', '#351a1a', '#210f0f'] };
-  const TITLE = { press: ['HIDRAULIKUS PRÉS', '#7fb2ff'], grind: ['UNIVERZÁLIS DARÁLÓ', '#ffb15c'], melt: ['OLVASZTÓKEMENCE', '#ff6b5c'] };
+  const TITLE = { yard: ['SZEMÉTTELEP · DARU', '#8de08d'], press: ['HIDRAULIKUS PRÉS', '#7fb2ff'], grind: ['UNIVERZÁLIS DARÁLÓ', '#ffb15c'], melt: ['OLVASZTÓKEMENCE', '#ff6b5c'] };
 
   function paintBg(sc) {
     const g = sc.bg; g.width = lw; g.height = lh; cc = g.getContext('2d'); cc.setTransform(lw / W, 0, 0, lh / H, 0, 0);
-    paintBase(sc); ({ press: paintPress, grind: paintGrind, melt: paintMelt })[sc.kind](sc);
-    const t = TITLE[sc.kind], txt = `${t[0]}  Sz.${st[sc.kind]}` + (sc.kind === 'melt' ? `  ×${meltMult().toFixed(1).replace('.', ',')}` : '');
+    cc.imageSmoothingEnabled = false;
+    if (sc.kind !== 'yard') paintBase(sc);
+    ({ yard: paintYard, press: paintPress, grind: paintGrind, melt: paintMelt })[sc.kind](sc);
+    const t = TITLE[sc.kind], txt = (sc.kind === 'yard' ? t[0] : `${t[0]}  Sz.${st[sc.kind]}`) + (sc.kind === 'melt' ? `  ×${meltMult().toFixed(1).replace('.', ',')}` : '');
     const w = Math.min(W * .66, txt.length * 6 * U * .75 + 8 * U), x = W / 2 - w / 2, y = 2 * U, h = 9 * U;
     R(x, y, w, h, '#0e0b14'); R(x, y, w, U, t[1]); R(x, y + h - U, w, U, t[1]); R(x, y, U, h, t[1]); R(x + w - U, y, U, h, t[1]);
     label(txt, W / 2, y + h / 2 + U * .5, Math.min(7 * U, w / (txt.length * .65)), t[1]);
@@ -737,6 +774,35 @@ function start() {
     }
   }
 
+  const JUNK_E = ['🚗', '🛞', '🛢️', '🪑', '🚚', '🧰', '📺', '🛋️', '✈️', '🚲', '🧱', '🗄️', '🚌', '📦', '🚽', '🛁'];
+  function paintYard(sc) { // óriási szemétdomb, gyárak a horizonton, daru-pálya, a gépek tölcsérei
+    const L = sc.L, ft = L.ft, cw = L.cw, hy = 13 * U, bh = L.bh, COLS = { press: '#7fb2ff', grind: '#ffb15c', melt: '#ff6b5c' };
+    const sg = cc.createLinearGradient(0, 0, 0, ft); sg.addColorStop(0, '#0b0814'); sg.addColorStop(.7, '#241a30'); sg.addColorStop(1, '#3a2438');
+    cc.fillStyle = sg; cc.fillRect(0, 0, W + U, H + U);
+    cc.fillStyle = '#d8d0ee'; cc.beginPath(); cc.arc(W * .84, H * .2, 9 * U, 0, 7); cc.fill(); R(W * .84 - 4 * U, H * .2 - 2 * U, 3 * U, 3 * U, '#b8b0d0'); R(W * .84 + U, H * .2 + 2 * U, 2 * U, 2 * U, '#b8b0d0');
+    for (let x = 0; x < W; x += 6 * U) { const h = 10 * U + hs(x, 3) * 22 * U; R(x, ft - h - H * .08, 6 * U, h + H * .08, '#150f1e'); if (hs(x, 9) > .8) R(x + 2 * U, ft - h - H * .08 - 10 * U, 2 * U, 10 * U, '#150f1e'); } // gyár-sziluettek
+    const mt = (amp, base, col, seed) => { const end = L.rWall + 20 * U; for (let x = 0; x < end; x += 2 * U) { const t = x / end, env = Math.sin(Math.PI * Math.min(1, t * 1.05)), h = base + amp * (hs(Math.floor(x / (6 * U)), seed) * .6 + .4) * env; R(x, ft - h, 2 * U, h, col); } };
+    mt(H * .22, H * .12, '#1c1626', 5); mt(H * .16, H * .09, '#161120', 11); // a hulladékhegy két rétege
+    for (let i = 0; i < 26; i++) { // sötét szemét-sziluettek a hegyen
+      const sz = 22 + hs(i, 3) * 36, x = L.pl0 + hs(i, 1) * (L.pl1 - L.pl0), y = ft - H * .1 - hs(i, 2) * H * .2, sp = emojiSprite({ e: JUNK_E[i % JUNK_E.length] }, Math.round(sz / U), Math.round(sz / U)), tn = tinted(sp, '#241c30', 'sil');
+      cc.drawImage(tn, x - sz / 2, y - sz / 2, tn.width * U, tn.height * U);
+    }
+    R(0, ft, W + U, L.fh + U, '#3a2a22'); R(0, ft, W + U, U, '#6a5040'); for (let x = 0; x < W; x += 7 * U) if (hs(x, 4) > .5) R(x, ft + 2 * U + hs(x, 6) * 6 * U, 2 * U, U, '#5a4034');
+    hazard(0, H - 3 * U, W + U, 3 * U);
+    steel(L.rWall, H * .30, 5 * U, ft - H * .30); hazard(L.rWall, H * .30 - 2 * U, 5 * U, 2 * U); // támfal
+    steel(0, 0, cw, ft); steel(W - cw, 0, cw, ft); steel(0, 0, W, hy); beamRivets();
+    R(cw, hy + U, W - 2 * cw, 3 * U, '#6a6a80'); R(cw, hy + U, W - 2 * cw, U, '#a4a4bc'); R(cw, hy + 4 * U, W - 2 * cw, U, '#25252f'); // daru-sín
+    for (const k of KINDS) { // a gépek torkai
+      const t = L.thr[k], col = COLS[k], x0 = t.x - t.hw / 2, pw = Math.max(6 * U, t.hw * .34), fh = 12 * U, py = t.mouth - 22 * U;
+      for (let y = 0; y < fh; y += U) { const f = y / fh, w = t.hw - (t.hw - pw) * f; R(t.x - w / 2, t.mouth + y, w, U, '#3d3d4f'); R(t.x - w / 2, t.mouth + y, U, U, '#8a8aa4'); R(t.x + w / 2 - U, t.mouth + y, U, U, '#25252f'); }
+      R(x0 - U, t.mouth - U, t.hw + 2 * U, 2 * U, col); hazard(x0, t.mouth - 3 * U, t.hw, 2 * U);
+      pipeV(t.x - pw / 2, t.mouth + fh, ft - 8 * U, pw / U); R(t.x - pw / 2 - U, ft - 8 * U, pw + 2 * U, 8 * U, '#14111c');
+      R(x0, py, t.hw, 16 * U, '#0e0b14'); R(x0, py, t.hw, U, col); R(x0, py + 15 * U, t.hw, U, col); R(x0, py, U, 16 * U, col); R(x0 + t.hw - U, py, U, 16 * U, col);
+      label(LV[k].icon, t.x, py + 6 * U, 7 * U, '#fff'); label(LV[k].name, t.x, py + 12.5 * U, Math.min(4 * U, t.hw / (LV[k].name.length * .62)), col);
+    }
+    sign(L.pl0 + 14 * U, hy + 24 * U);
+  }
+
   function paintMelt(sc) {
     const L = sc.L, ft = L.ft, cw = L.cw, hy = 13 * U;
     steel(0, 0, cw, ft); steel(W - cw, 0, cw, ft); steel(0, 0, W, hy); beamRivets();
@@ -767,6 +833,7 @@ function start() {
       ctx.restore();
     }
   }
+  const clampXY = (v, a, b) => Math.max(a, Math.min(b, v));
   const PCOL = ['#6a6f88', '#8a6a6a', '#a04a4a', '#c03030'], RCOL = ['#8a8070', '#a89078', '#c07a50', '#e05030'];
   function drawBelts(sc, now) {
     const bh = sc.L.bh;
@@ -782,13 +849,14 @@ function start() {
     }
   }
   function drawRotor(r, ang, alpha) { // négykarú, kampós vágótárcsa (a kampók a forgás irányába hajlanak)
-    const bt = Math.max(10, 11 * S), R0 = r.r, sy = r.dir, y = v => v * sy;
+    const bt = Math.max(12, 13 * S), R0 = r.r, sy = r.dir, y = v => v * sy;
     ctx.save(); ctx.globalAlpha = alpha; ctx.translate(r.home.x, r.home.y); ctx.rotate(ang);
     for (let i = 0; i < 4; i++) {
-      ctx.save(); ctx.rotate(i * Math.PI / 2); ctx.beginPath();
-      ctx.moveTo(R0 * .1, y(-bt * .6)); ctx.lineTo(R0 * .62, y(-bt * .55));
-      ctx.quadraticCurveTo(R0 * 1.05, y(-bt * .5), R0 * 1.08, y(bt * 1.5));
-      ctx.quadraticCurveTo(R0 * .84, y(bt * .35), R0 * .62, y(bt * .55)); ctx.lineTo(R0 * .1, y(bt * .6)); ctx.closePath();
+      ctx.save(); ctx.rotate(i * Math.PI / 2); ctx.beginPath(); // tompa, vaskos fog: kerekített hegy, rövid váll
+      ctx.moveTo(R0 * .1, y(-bt * .65)); ctx.lineTo(R0 * .74, y(-bt * .65));
+      ctx.quadraticCurveTo(R0 * 1.02, y(-bt * .65), R0 * 1.03, y(-bt * .05));
+      ctx.quadraticCurveTo(R0 * 1.03, y(bt * .8), R0 * .88, y(bt * .95));
+      ctx.lineTo(R0 * .62, y(bt * .95)); ctx.lineTo(R0 * .52, y(bt * .65)); ctx.lineTo(R0 * .1, y(bt * .65)); ctx.closePath();
       ctx.fillStyle = RCOL[tier('grind')]; ctx.fill(); ctx.lineWidth = U; ctx.strokeStyle = '#0a0810'; ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(R0 * .14, y(-bt * .5), R0 * .46, U);
       ctx.restore();
@@ -807,6 +875,37 @@ function start() {
   }
 
   const DRAW = {
+    yard: {
+      back(sc, dt, al, now) {
+        const L = sc.L, c = sc.cr;
+        for (const k of KINDS) { // állapotlámpák + kiemelés, ha a markoló fölötte van
+          const t = L.thr[k], free = scenes[k].feedFree(), py = t.mouth - 22 * U, over = c.hold && sc.throatAt(c.gx, c.gy) === k;
+          R(t.x - U, py - 4 * U, 2 * U, 2 * U, free ? '#3cff3c' : '#ff3030');
+          if (over) { ctx.fillStyle = 'rgba(150,255,150,.22)'; ctx.fillRect(q(t.x - t.hw / 2), q(t.mouth - 18 * U), q(t.hw), 30 * U); const bob = Math.sin(now / 120) * 2 * U; R(t.x - U, t.mouth - 9 * U + bob, 2 * U, 3 * U, '#9aff9a'); R(t.x - 2 * U, t.mouth - 7 * U + bob, 4 * U, U, '#9aff9a'); }
+        }
+        if (c.pending || c.touch) { const x = clampXY(c.aimX, L.cw, W - L.cw), y = clampXY(c.aimY, L.railY, L.ft); R(x - 4 * U, y, 3 * U, U, '#ffe03c'); R(x + U, y, 3 * U, U, '#ffe03c'); R(x, y - 4 * U, U, 3 * U, '#ffe03c'); R(x, y + U, U, 3 * U, '#ffe03c'); } // célkereszt
+      },
+      front(sc, dt, al, now) {
+        const L = sc.L, c = sc.cr, cl = Math.max(18, 34 * S);
+        for (const it of sc.items) { if (it.carried || !orderWants(it)) continue; if (Math.sin(now / 250 + it.position.x) > -.3) label('★', it.position.x, it.bounds.min.y - 3 * U, 6 * U, '#ffe03c'); } // ★ = megbízáshoz kell
+        if (sc.hover && !c.hold) { const b = sc.hover.bounds, a = Math.sin(now / 150) > 0 ? 2 * U : 3 * U, x0 = b.min.x - a, x1 = b.max.x + a, y0 = b.min.y - a, y1 = b.max.y + a, k = 4 * U, col = '#ffe03c'; // célkeret
+          R(x0, y0, k, U, col); R(x0, y0, U, k, col); R(x1 - k, y0, k, U, col); R(x1 - U, y0, U, k, col); R(x0, y1 - U, k, U, col); R(x0, y1 - k, U, k, col); R(x1 - k, y1 - U, k, U, col); R(x1 - U, y1 - k, U, k, col); }
+        const ty = L.railY, x = c.x; // futómacska + kötél
+        R(x - 7 * U, ty - 3 * U, 14 * U, 7 * U, '#4a4a5e'); R(x - 7 * U, ty - 3 * U, 14 * U, U, '#a4a4bc'); R(x - 5 * U, ty + 4 * U, 3 * U, 2 * U, '#25252f'); R(x + 2 * U, ty + 4 * U, 3 * U, 2 * U, '#25252f'); R(x - U, ty - 5 * U, 2 * U, 2 * U, (Math.abs(c.vx) > .5 && Math.sin(now / 90) > 0) ? '#ffa020' : '#4a2a10');
+        const dx = c.gx - x, dy = c.gy - (ty + 4 * U), n = Math.max(2, Math.ceil(Math.hypot(dx, dy) / (3 * U)));
+        for (let i = 0; i <= n; i++) R(x + dx * i / n, ty + 4 * U + dy * i / n, U * 1.5, 2 * U, i % 2 ? '#8a8aa0' : '#4a4a5e');
+        ctx.save(); ctx.translate(c.gx, c.gy); ctx.rotate(-c.ang); // markoló (narancshéj-fogó): nyitva a karmok szétnyílnak, megfogáskor összezárnak
+        const o = 1 - c.close, a = .12 + .85 * o + (c.miss > 0 ? Math.sin(now / 40) * .1 : 0), hub = 5 * U;
+        for (const s of [-1, 1]) {
+          const tipX = s * Math.sin(a) * cl, tipY = Math.cos(a) * cl, cx = s * Math.sin(a) * cl * 1.3, cy2 = Math.cos(a) * cl * .4;
+          ctx.beginPath(); ctx.moveTo(s * 2 * U, 0); ctx.quadraticCurveTo(cx, cy2, tipX, tipY); ctx.lineCap = 'round';
+          ctx.strokeStyle = '#0a0810'; ctx.lineWidth = U * 4.5; ctx.stroke(); ctx.strokeStyle = '#ff9f1c'; ctx.lineWidth = U * 2.5; ctx.stroke();
+          ctx.fillStyle = '#e8e0f5'; ctx.fillRect(tipX - U, tipY - U, 2 * U, 2 * U);
+        }
+        ctx.lineCap = 'butt'; ctx.fillStyle = '#0a0810'; ctx.fillRect(-hub - U, -4 * U - U, 2 * hub + 2 * U, 7 * U); ctx.fillStyle = '#c0701a'; ctx.fillRect(-hub, -4 * U, 2 * hub, 5 * U); ctx.fillStyle = '#ffb347'; ctx.fillRect(-hub, -4 * U, 2 * hub, U);
+        ctx.restore();
+      }
+    },
     press: {
       back(sc, dt, al, now, lerp) {
         const L = sc.L, p = sc.plate, s = sc.snd; drawBelts(sc, now);
@@ -934,12 +1033,12 @@ function start() {
     beacon(W - L.cw - 8 * U, 6.5 * U, act, '#ff3030', now);
 
     for (const b of items) { // nevek
-      if (b.gen > 0) continue;
+      if (b.gen > 0 || sc.kind === 'yard') continue;
       const sel = (sc.drag && sc.drag.b === b) || sc.hover === b;
       if (sel || now < b.labelT || (st.names && items.length <= 30)) textBox(b.name, b.position.x, b.bounds.min.y - 13 * U, sel ? '#ffb11a' : '#6b4fa0');
     }
     const sel = sc.drag ? sc.drag.b : sc.hover;
-    if (sel && sel.alive) textBox(`${sel.name} · ${fmt(sel.value)} · ${Math.max(0, Math.ceil(sel.hp))}/${Math.ceil(sel.maxHp)} HP`, W / 2, 24 * U, '#ffb11a');
+    if (sel && sel.alive) textBox(sc.kind === 'yard' ? `${sel.name} · ár: ${buyCost(sel.def) ? fmt(buyCost(sel.def)) : 'ingyen'} → érték: ${fmt(sel.value)}` : `${sel.name} · ${fmt(sel.value)} · ${Math.max(0, Math.ceil(sel.hp))}/${Math.ceil(sel.maxHp)} HP`, W / 2, 24 * U, '#ffb11a');
     ctx.font = `bold ${Math.max(6 * U, 16 * S)}px "Courier New",monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (let i = pops.length - 1; i >= 0; i--) {
       const pp = pops[i]; pp.t -= dt; if (pp.t <= 0) { pops.splice(i, 1); continue; }
@@ -969,7 +1068,7 @@ function start() {
   function audioTick(dt) {
     if (!AC) return;
     const sc = scenes[cur], s = sc.snd, on = st.sfx && !paused && !!AC && view !== 'orders', t = AC.currentTime, set = (g, v) => g.gain.setTargetAtTime(on ? v : 0, t, .06);
-    const pk = cur === 'press', gk = cur === 'grind', mk = cur === 'melt', pr = pk ? s.press : 0;
+    const pk = cur === 'press', gk = cur === 'grind', mk = cur === 'melt', pr = (pk || cur === 'yard') ? s.press : 0;
     set(A.hyd.g, .07 * pr); A.hyd.o.frequency.setTargetAtTime(55 + 90 * pr, t, .08);
     set(A.whine.g, .012 * pr); A.whine.o.frequency.setTargetAtTime(220 + 520 * pr * (s.dir > 0 ? 1 : .6), t, .08);
     set(A.hiss.g, pk && s.dir > 0 ? .02 * pr : 0);
@@ -1008,10 +1107,15 @@ function start() {
   let last = performance.now(), acc = 0, hudTxt = '';
   function frame(t) {
     const dt = Math.min(100, t - last); last = t;
-    if (!paused) { acc += dt; let n = 0; while (acc >= 1000 / 60 && n < 4) { KINDS.forEach(k => scenes[k].step()); acc -= 1000 / 60; n++; } if (n === 4) acc = 0; }
+    if (!paused) { acc += dt; let n = 0; while (acc >= 1000 / 60 && n < 4) { ALL.forEach(k => scenes[k].step()); acc -= 1000 / 60; n++; } if (n === 4) acc = 0; }
     if (view === 'melt') { // hőmérséklet-kijelző a lábléc-vezérlőn
       const T = scenes.melt.temp, txt = `🌡 ${Math.round(T)} °C → ${st.tset ? st.tset + ' °C' : 'KI'} · 🔥 ${fuelPerSec(T).toFixed(1).replace('.', ',')} Ft/mp`;
       if (txt !== hudTxt) { hudTxt = txt; $('tempRead').textContent = txt; }
+    }
+    if (view === 'yard') { // a daru állapota a láblécben
+      const yc = scenes.yard.cr, h = yc.hold || scenes.yard.hover;
+      const txt = yc.hold ? `🤏 ${yc.hold.name} · ${buyCost(yc.hold.def) ? fmt(buyCost(yc.hold.def)) : 'ingyen'} → vidd egy torok fölé, majd engedd el` : h ? `🎯 ${h.name} · ár ${buyCost(h.def) ? fmt(buyCost(h.def)) : 'ingyen'} → érték ${fmt(h.value)}` : '👆 Érintsd meg, hová menjen a markoló – ott megfogja a tárgyat. Utána érintsd meg a kívánt gép torkát.';
+      if (txt !== hudTxt) { hudTxt = txt; $('yardInfo').textContent = txt; }
     }
     renderScene(scenes[cur], dt / 1000, paused ? 1 : Math.min(1, acc / (1000 / 60)));
     audioTick(dt / 1000); requestAnimationFrame(frame);
@@ -1020,9 +1124,10 @@ function start() {
     W = wrap.clientWidth; H = wrap.clientHeight; if (!W || !H) return;
     U = Math.max(2, Math.round(Math.min(W, H) / 200)); lw = Math.ceil(W / U); lh = Math.ceil(H / U); cv.width = lw; cv.height = lh;
     S = Math.max(.45, Math.min(1.2, W / 800, H / 520));
-    KINDS.forEach(k => {
+    ALL.forEach(k => {
       const sc = scenes[k]; sc.endDrag(); sc.build();
       sc.items.slice().forEach(b => { if (b.position.x > W || b.position.y > H || b.position.x < 0) sc.kill(b, 'melt', true); });
+      if (k === 'yard') sc.topUp(44);
     });
   }
   new ResizeObserver(resize).observe(wrap);
@@ -1046,7 +1151,7 @@ function start() {
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; $('btnInstall').hidden = false; });
   $('btnInstall').onclick = async () => { if (deferred) { deferred.prompt(); deferred = null; $('btnInstall').hidden = true; } };
 
-  KINDS.forEach(k => { scenes[k] = makeScene(k); });
+  ALL.forEach(k => { scenes[k] = makeScene(k); });
   ensureOrders(); ui(); resize(); requestAnimationFrame(frame);
 }
 

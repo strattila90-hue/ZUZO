@@ -25,7 +25,7 @@
 </header>
 <div id="goal" role="button" tabindex="0"></div>
 <nav id="tabs">
-  <button id="tab_press" class="tab"></button><button id="tab_grind" class="tab"></button><button id="tab_melt" class="tab"></button><button id="tab_orders" class="tab"></button>
+  <button id="tab_yard" class="tab"></button><button id="tab_press" class="tab"></button><button id="tab_grind" class="tab"></button><button id="tab_melt" class="tab"></button><button id="tab_orders" class="tab"></button>
 </nav>
 <main id="wrap">
   <canvas id="cv"></canvas>
@@ -33,10 +33,6 @@
 </main>
 <footer id="ctl">
   <div id="ctlMachine">
-    <div class="row">
-      <button id="btnPick" aria-label="Tárgy választása"></button>
-      <button id="btnMake" class="primary" aria-label="Létrehoz (nyomva tartva folyamatosan)">Létrehoz<small>nyomva tartva: sorozat</small></button>
-    </div>
     <div id="ctlPress" class="row" hidden>
       <button id="btnPress" class="sw ml" aria-label="Prés kapcsoló">🔴 PRÉS KAPCSOLÓ<small>nyomd: 1 ütés · tartsd: folyamatos</small></button>
       <button id="btnAuto" class="autob ml" hidden></button>
@@ -47,29 +43,25 @@
     </div>
     <button id="btnUp" class="up ml"></button>
   </div>
+  <div id="ctlYard" hidden>
+    <div id="yardInfo" class="yinfo"></div>
+    <div class="row"><button id="btnGrab" class="primary">🤏 MARKOL / ENGED</button><button id="btnShuffle">🔄 Új halom</button></div>
+  </div>
   <div id="ctlOrders" hidden>
     <div class="sm">💳 Tartozás törlesztése a pénzedből:</div>
     <div class="pay"><button id="pay25">25%</button><button id="pay50">50%</button><button id="payMax" class="primary">MAX</button></div>
   </div>
 </footer>
 
-<div id="picker" class="overlay sheet hide">
-  <div class="card">
-    <div class="phead"><b>🛒 Beszerzés – válassz tárgyat</b><button id="pkClose" class="ico" aria-label="Bezár">✕</button></div>
-    <div id="pkCats"></div>
-    <div id="pkList"></div>
-  </div>
-</div>
-
 <div id="menu" class="overlay">
   <div class="card scroll">
     <h1 class="logo">ZÚZÓ</h1><div class="sub">KFT. · HULLADÉKFELDOLGOZÓ ÜZEM</div>
     <p class="story">Nagybátyád ócskatelepét örökölted – de a bank tartozást követel. Vezesd az üzemet, teljesíts megbízásokat, fejlődj, és fizesd ki az adósságot!</p>
     <ol class="how">
-      <li><b>📋 Megbízások</b>: ezek mondják meg, mit zúzz. Teljesítésük pénzt és XP-t ad.</li>
-      <li><b>🛒 Beszerzés</b>: válassz tárgyat alul, és hozd létre (az ára az érték ~35%-a).</li>
-      <li><b>Három gép</b> (külön fülek): a <span class="c1">prést</span> te működteted a kapcsolóval, a <span class="c2">daráló</span> magától zúz, az <span class="c3">olvasztót</span> a hőfokgombbal fűtöd be (a fűtés pénzbe kerül, de ×2,5 pénzt ad).</li>
-      <li><b>⬆ Fejlesztés</b>: minden gép külön fejleszthető – a plafont a cég szintje adja. Szintlépés = új tárgyak!</li>
+      <li><b>🏗️ Telep</b>: a hatalmas szemétdombon találod a zúzható tárgyakat. <b>Érintsd meg</b>, hová menjen a daru markolója – ott megfogja a tárgyat; érintsd meg a kívánt gép <b>torkát</b>, és beleejti. (★ = megbízáshoz kell)</li>
+      <li><b>📋 Megbízások</b>: megmondják, mit zúzz; pénzt és XP-t adnak.</li>
+      <li><b>Három gép</b> (külön fülek): a <span class="c1">prést</span> te működteted a kapcsolóval, a <span class="c2">daráló</span> magától zúz, az <span class="c3">olvasztót</span> a hőfokgombbal fűtöd be (pénzbe kerül, de ×2,5 pénzt ad).</li>
+      <li><b>⬆ Fejlesztés</b>: minden gép külön fejleszthető – a plafont a cég szintje adja. Szintlépés = új tárgyak a halomban!</li>
       <li><b>💳 Cél</b>: törleszd a bank tartozását fejezetről fejezetre.</li>
     </ol>
     <p id="err" class="err" hidden>⚠ A Matter.js nem töltődött be. Tedd a <code>matter.min.js</code> fájlt a játék mellé (lásd README), vagy kapcsolódj egyszer az internethez.</p>
